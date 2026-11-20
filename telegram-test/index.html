@@ -272,7 +272,7 @@ renderHome();renderPeople();
     showStatus('Вход через Telegram пока не настроен. Доступен деморежим.');
     return;
   }
-  const endpoint = new URL('/functions/v1/telegram-auth', projectUrl);
+  const endpoint = new URL('/functions/v1/telegram-auth-', projectUrl);
   const reopen = ' Закройте Mini App и откройте его заново через бота в Telegram.';
   const signedIn = 'Вход через Telegram подтверждён. Анкеты и смены пока работают в деморежиме.';
 

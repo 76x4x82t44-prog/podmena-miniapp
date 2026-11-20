@@ -23,6 +23,14 @@
 #telegramRetry{margin-top:8px;min-height:44px}
 .profile-form button:disabled{opacity:.58;cursor:default}
 #profileReload{margin-bottom:10px;min-height:44px}
+.shift-fields{margin:0;padding:0;border:0;min-width:0}
+.shift-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.shift-actions button,.shift-filter button{min-height:44px}
+.shift-filter .field :is(input,select),#createForm .field :is(input,select,textarea){font-size:16px}
+.shift-card{overflow-wrap:anywhere}
+.shift-card p{white-space:pre-wrap}
+#primaryAction{margin-bottom:12px}
+button:disabled{opacity:.6;cursor:default}
 </style></head><body><div class="app">
 <header class="top"><div class="brand"><div class="logo">↔</div> ПОДМЕНА</div><div class="sub">Смены и сотрудники ПВЗ в Санкт-Петербурге</div><div class="hero">Найди смену.<br>Найди надёжную замену.</div><div class="hero-sub">Ozon · Wildberries · Яндекс Маркет</div><div class="city"><span>⌖ Санкт-Петербург</span><span>Город запуска　⌄</span></div></header>
 <main class="content">
@@ -32,14 +40,42 @@
 </div>
 <div class="switch" role="group" aria-label="Режим поиска"><button id="workerMode" class="active" aria-pressed="true" onclick="setMode('worker')">⌕　Ищу смену</button><button id="managerMode" aria-pressed="false" onclick="setMode('manager')">♙　Ищу замену</button></div><p class="mode-note" id="modeNote">Найдите подходящую подработку в ПВЗ.</p>
 <section id="homePage" class="page active">
-<div class="section-head"><h2 id="homeTitle">Подходящие смены</h2><span class="muted">Демо-данные</span></div>
+<div class="section-head"><h2 id="homeTitle">Подходящие смены</h2><span id="homeDataLabel" class="muted">Демо-данные</span></div>
+<div id="demoListings">
 <div class="filters"><select id="platformFilter" aria-label="Площадка" onchange="renderHome()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="districtFilter" aria-label="Район" onchange="renderHome()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div>
 <div id="listings" aria-live="polite"></div>
+<div class="notice">Деморежим. Смены и сотрудники в каталоге вымышлены.</div>
+</div>
 <button class="btn full" id="primaryAction" onclick="openCreate()" style="display:none">＋ Разместить смену</button>
-<div class="notice">Смены и сотрудники в каталоге — демо-данные. Реальные отклики пока не отправляются.</div>
+<div id="liveListings" hidden>
+  <form id="shiftFilter" class="card shift-filter" aria-label="Фильтры смен">
+    <div class="field"><label for="shiftCity">Город</label><input id="shiftCity" name="city" maxlength="80" placeholder="Все города"></div>
+    <div class="field"><label for="shiftDistrict">Район</label><input id="shiftDistrict" name="district" maxlength="100" placeholder="Все районы"></div>
+    <div class="field"><label for="shiftPlatform">Площадка</label><select id="shiftPlatform" name="platform">
+      <option value="">Все площадки</option><option value="ozon">Ozon</option><option value="wildberries">Wildberries</option><option value="yandex_market">Яндекс Маркет</option>
+    </select></div>
+    <button class="btn secondary full" type="submit">Показать смены</button>
+  </form>
+  <div id="shiftResults" aria-live="polite"></div>
+</div>
 </section>
 <section id="searchPage" class="page"><div class="section-head"><h2 id="searchTitle">Каталог сотрудников</h2><span class="muted">Демо-данные</span></div><div class="filters"><select id="searchPlatformFilter" aria-label="Площадка сотрудников" onchange="renderPeople()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="searchDistrictFilter" aria-label="Район сотрудников" onchange="renderPeople()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div><div id="people" aria-live="polite"></div></section>
-<section id="shiftsPage" class="page"><div class="section-head"><h2>Мои смены</h2></div><div class="card"><div class="empty">Здесь появятся ваши отклики, выбранные смены и история договорённостей.</div></div></section>
+<section id="shiftsPage" class="page">
+  <div class="section-head"><h2>Мои смены</h2></div>
+  <div id="demoShifts" class="card"><div class="empty">Деморежим. Ваши отклики и объявления доступны при входе через Telegram.</div></div>
+  <div id="liveShifts" hidden>
+    <div class="switch" role="group" aria-label="Мои смены">
+      <button id="myApplications" type="button" class="active" aria-pressed="true">Мои отклики</button>
+      <button id="myListings" type="button" aria-pressed="false">Мои объявления</button>
+    </div>
+    <div id="myShiftResults" aria-live="polite"></div>
+  </div>
+</section>
+<section id="respondentsPage" class="page">
+  <div class="section-head"><h2>Отклики на смену</h2><button id="backFromRespondents" class="btn ghost" type="button">Назад</button></div>
+  <p id="respondentsTitle" class="name"></p>
+  <div id="respondentsResults" aria-live="polite"></div>
+</section>
 <section id="messagesPage" class="page"><div class="section-head"><h2>Сообщения</h2></div><div class="card"><div class="empty">После подключения авторизации здесь появятся диалоги с руководителями и сотрудниками.</div></div></section>
 <section id="profilePage" class="page">
   <div class="section-head"><h2>Мой профиль</h2></div>
@@ -112,10 +148,49 @@
     <p class="muted">Пока нет отзывов</p>
   </div>
 </section>
-<section id="createPage" class="page"><div class="section-head"><h2>Новая заявка на замену</h2><button class="btn ghost" onclick="showPage('homePage')">Назад</button></div><form id="createForm" class="card"><div class="field"><label>Маркетплейс</label><select id="newPlatform"><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select></div><div class="field"><label>Район Санкт-Петербурга</label><select id="newDistrict"><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div><div class="field"><label>Адрес ПВЗ</label><input id="newAddress" placeholder="Например, Московский проспект, 10" required></div><div class="field"><label>Дата смены</label><input id="newDate" type="date" required></div><div class="row"><div class="field" style="flex:1"><label>Начало</label><input id="newStart" type="time" value="09:00" required></div><div class="field" style="flex:1"><label>Окончание</label><input id="newEnd" type="time" value="21:00" required></div></div><div class="field"><label>Оплата за смену, ₽</label><input id="newPrice" type="number" min="0" placeholder="3000" required></div><div class="field"><label>Требования / комментарий</label><textarea id="newNote" placeholder="Опыт, обязанности, особенности ПВЗ"></textarea></div><button class="btn full" type="submit">Опубликовать демо-заявку</button><p class="small">В прототипе заявка сохраняется только в памяти открытой страницы.</p></form></section>
+<section id="createPage" class="page">
+  <div class="section-head"><h2>Новая смена</h2><button type="button" class="btn ghost" onclick="showPage('homePage')">Назад</button></div>
+  <form id="createForm" class="card">
+    <div class="field"><label for="newPlatform">Маркетплейс</label><select id="newPlatform"><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select></div>
+    <fieldset id="demoLocation" class="shift-fields">
+      <div class="field"><label for="newDistrict">Район Санкт-Петербурга</label><select id="newDistrict"><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div>
+    </fieldset>
+    <fieldset id="liveLocation" class="shift-fields" hidden disabled>
+      <div class="field"><label for="newCity">Город</label><input id="newCity" maxlength="80" required></div>
+      <div class="field"><label for="newLiveDistrict">Район</label><input id="newLiveDistrict" maxlength="100" required></div>
+      <div class="field"><label for="newZone">Часовой пояс ПВЗ</label><select id="newZone">
+        <option value="Europe/Kaliningrad">Калининград · UTC+2</option>
+        <option value="Europe/Moscow" selected>Москва, Санкт-Петербург · UTC+3</option>
+        <option value="Europe/Samara">Самара · UTC+4</option>
+        <option value="Asia/Yekaterinburg">Екатеринбург · UTC+5</option>
+        <option value="Asia/Omsk">Омск · UTC+6</option>
+        <option value="Asia/Novosibirsk">Новосибирск, Красноярск · UTC+7</option>
+        <option value="Asia/Irkutsk">Иркутск · UTC+8</option>
+        <option value="Asia/Yakutsk">Якутск · UTC+9</option>
+        <option value="Asia/Vladivostok">Владивосток · UTC+10</option>
+        <option value="Asia/Magadan">Магадан · UTC+11</option>
+        <option value="Asia/Kamchatka">Камчатка · UTC+12</option>
+      </select></div>
+    </fieldset>
+    <div class="field"><label for="newAddress">Адрес ПВЗ</label><input id="newAddress" maxlength="160" placeholder="Например, Московский проспект, 10" required></div>
+    <div class="field"><label for="newDate">Дата смены</label><input id="newDate" type="date" required></div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:0"><label for="newStart">Начало</label><input id="newStart" type="time" value="09:00" required></div>
+      <div class="field" style="flex:1;min-width:0"><label for="newEnd">Окончание</label><input id="newEnd" type="time" value="21:00" required></div>
+    </div>
+    <p id="shiftTimeHint" class="small" hidden>Если время окончания раньше начала, смена продолжится до следующего дня.</p>
+    <div class="field"><label for="newPrice">Оплата за смену, ₽</label><input id="newPrice" type="number" min="0" max="2147483647" placeholder="3000" required></div>
+    <div class="field"><label for="newNote">Условия работы</label><textarea id="newNote" maxlength="500" placeholder="Опыт, обязанности, особенности ПВЗ"></textarea></div>
+    <button id="shiftPublish" class="btn full" type="submit">Опубликовать демо-заявку</button>
+    <p id="shiftCreateHint" class="small">Демо-заявка сохраняется только до обновления страницы.</p>
+    <p id="shiftCreateStatus" class="profile-status" role="status"></p>
+  </form>
+</section>
 </main>
 <nav class="tabs"><button class="tab active" data-page="homePage" onclick="showPage('homePage',this)"><b>⌂</b>Главная</button><button class="tab" data-page="searchPage" onclick="showPage('searchPage',this)"><b>⌕</b>Поиск</button><button class="tab" data-page="shiftsPage" onclick="showPage('shiftsPage',this)"><b>▦</b>Смены</button><button class="tab" data-page="messagesPage" onclick="showPage('messagesPage',this)"><b>☏</b>Чаты</button><button class="tab" data-page="profilePage" onclick="showPage('profilePage',this)"><b>♙</b>Профиль</button></nav><div class="toast" id="toast"></div>
-</div><script>
+</div><script src="shifts.js"></script><script>
+const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
+  Boolean(window.Telegram.WebApp.initData);
 let mode='worker';
 let custom=[]; // Демо-заявки хранятся только до обновления страницы.
 const seed=[{platform:'Ozon',district:'Приморский',address:'Комендантский проспект, пример',date:'Сегодня',time:'09:00–21:00',price:3200,tag:'Срочно',note:'Опыт приветствуется'},{platform:'Wildberries',district:'Московский',address:'Московский проспект, пример',date:'Завтра',time:'10:00–22:00',price:2800,tag:'Новая',note:'Нужен опыт работы с WB'},{platform:'Яндекс Маркет',district:'Центральный',address:'Лиговский проспект, пример',date:'22 ноября',time:'08:00–20:00',price:3000,tag:'Новая',note:'Обучение на месте'}];
@@ -131,8 +206,8 @@ function setMode(next){
   document.getElementById('managerMode').classList.toggle('active',!worker);
   document.getElementById('workerMode').setAttribute('aria-pressed',String(worker));
   document.getElementById('managerMode').setAttribute('aria-pressed',String(!worker));
-  document.getElementById('homeTitle').textContent=worker?'Подходящие смены':'Доступные сотрудники';
-  document.getElementById('modeNote').textContent=worker?'Найдите подходящую подработку в ПВЗ.':'Найдите сотрудника или разместите смену для своего ПВЗ.';
+  document.getElementById('homeTitle').textContent=worker?'Подходящие смены':(hasTelegramInitData?'Мои объявления':'Доступные сотрудники');
+  document.getElementById('modeNote').textContent=worker?'Найдите подходящую подработку в ПВЗ.':(hasTelegramInitData?'Разместите смену и выберите исполнителя.':'Найдите сотрудника или разместите смену для своего ПВЗ.');
   const action=document.getElementById('primaryAction');
   action.style.display=worker?'none':'block';
   action.textContent='＋ Разместить смену';
@@ -141,6 +216,7 @@ function setMode(next){
   showPage('homePage');
 }
 function renderHome(){
+  if (hasTelegramInitData) return;
   const platform=document.getElementById('platformFilter').value;
   const district=document.getElementById('districtFilter').value;
   if(mode==='manager'){
@@ -167,11 +243,13 @@ function showPage(id,el){
   page.classList.add('active');
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   if(el)el.classList.add('active');else document.querySelector(`[data-page="${id}"]`)?.classList.add('active');
+  shiftBoard?.show(id);
 }
 function openCreate(){if(mode==='manager')showPage('createPage');else toast('Переключитесь в режим «Ищу замену», чтобы разместить смену');}
 function toast(message){let t=document.getElementById('toast');t.textContent=message;t.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>t.style.display='none',2600);}
 document.getElementById('createForm').addEventListener('submit',event=>{
   event.preventDefault();
+  if (hasTelegramInitData) return;
   const date=document.getElementById('newDate').value,start=document.getElementById('newStart').value,end=document.getElementById('newEnd').value;
   if(!date||end<=start){toast('Проверьте дату и время: окончание должно быть позже начала');return;}
   custom.unshift({platform:document.getElementById('newPlatform').value,district:document.getElementById('newDistrict').value,address:document.getElementById('newAddress').value,date,time:start+'–'+end,price:document.getElementById('newPrice').value,tag:'Новая',note:document.getElementById('newNote').value});
@@ -180,10 +258,9 @@ document.getElementById('createForm').addEventListener('submit',event=>{
   renderHome();
   toast('Демо-заявка добавлена. Посмотрите её в режиме «Ищу смену».');
 });
+const shiftBoard = hasTelegramInitData
+  ? createShiftBoard({ getMode: () => mode, showPage, escapeHtml, toast }) : null;
 renderHome();renderPeople();
-
-const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
-  Boolean(window.Telegram.WebApp.initData);
 
 const profileEditor = (function initProfiles(){
   const profile = document.getElementById('profilePage');
@@ -407,8 +484,9 @@ const profileEditor = (function initProfiles(){
   }
   const endpoint = new URL('/functions/v1/telegram-auth-', projectUrl);
   const profilesEndpoint = new URL('/functions/v1/telegram-profiles', projectUrl);
+  const shiftsEndpoint = new URL('/functions/v1/telegram-shifts', projectUrl);
   const reopen = ' Закройте Mini App и откройте его заново через бота в Telegram.';
-  const signedIn = 'Вход через Telegram подтверждён. Смены и поиск пока работают в деморежиме.';
+  const signedIn = 'Вход через Telegram подтверждён.';
 
   // The server session exists only in this page's memory.
   let session = null;
@@ -419,6 +497,7 @@ const profileEditor = (function initProfiles(){
     clearTimeout(expiryTimer);
     session = null;
     profileEditor.disconnect();
+    shiftBoard.disconnect();
     showStatus(message + reopen);
   }
 
@@ -435,20 +514,20 @@ const profileEditor = (function initProfiles(){
         signal: controller.signal, cache: 'no-store', credentials: 'omit',
         redirect: 'error', referrerPolicy: 'no-referrer'
       });
-      return { status: response.status, ok: response.ok, data: response.ok ? await response.json() : null };
+      return { status: response.status, ok: response.ok, data: await response.json().catch(() => null) };
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  async function requestProfiles(method, body) {
+  async function requestWithSession(url, method, body) {
     const current = session;
     if (!current) throw new Error('Session unavailable');
     if (current.expiresAt <= Date.now()) {
       endSession('Срок действия сессии истёк.');
       throw new Error('Session expired');
     }
-    const response = await send(profilesEndpoint, method, current.token, body);
+    const response = await send(url, method, current.token, body);
     if (session !== current) throw new Error('Session ended');
     if (response.status === 401) endSession('Сессия больше недействительна.');
     return response;
@@ -500,7 +579,8 @@ const profileEditor = (function initProfiles(){
       if (!current) {
         session = { userId, token: sessionToken, expiresAt: expiry };
         expiryTimer = setTimeout(() => endSession('Срок действия сессии истёк.'), expiry - Date.now());
-        profileEditor.connect(requestProfiles);
+        profileEditor.connect((method, body) => requestWithSession(profilesEndpoint, method, body));
+        shiftBoard.connect((action, input) => requestWithSession(shiftsEndpoint, 'POST', { action, input }));
       }
       showStatus(signedIn);
     } catch {

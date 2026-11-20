@@ -21,6 +21,8 @@
 #telegramEntry{margin:0 0 14px}
 #telegramStatus{margin:0}
 #telegramRetry{margin-top:8px;min-height:44px}
+.profile-form button:disabled{opacity:.58;cursor:default}
+#profileReload{margin-bottom:10px;min-height:44px}
 </style></head><body><div class="app">
 <header class="top"><div class="brand"><div class="logo">↔</div> ПОДМЕНА</div><div class="sub">Смены и сотрудники ПВЗ в Санкт-Петербурге</div><div class="hero">Найди смену.<br>Найди надёжную замену.</div><div class="hero-sub">Ozon · Wildberries · Яндекс Маркет</div><div class="city"><span>⌖ Санкт-Петербург</span><span>Город запуска　⌄</span></div></header>
 <main class="content">
@@ -34,14 +36,15 @@
 <div class="filters"><select id="platformFilter" aria-label="Площадка" onchange="renderHome()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="districtFilter" aria-label="Район" onchange="renderHome()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div>
 <div id="listings" aria-live="polite"></div>
 <button class="btn full" id="primaryAction" onclick="openCreate()" style="display:none">＋ Разместить смену</button>
-<div class="notice">Демонстрационный прототип: заявки и профили вымышлены. Реальные отклики пока не отправляются.</div>
+<div class="notice">Смены и сотрудники в каталоге — демо-данные. Реальные отклики пока не отправляются.</div>
 </section>
 <section id="searchPage" class="page"><div class="section-head"><h2 id="searchTitle">Каталог сотрудников</h2><span class="muted">Демо-данные</span></div><div class="filters"><select id="searchPlatformFilter" aria-label="Площадка сотрудников" onchange="renderPeople()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="searchDistrictFilter" aria-label="Район сотрудников" onchange="renderPeople()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div><div id="people" aria-live="polite"></div></section>
 <section id="shiftsPage" class="page"><div class="section-head"><h2>Мои смены</h2></div><div class="card"><div class="empty">Здесь появятся ваши отклики, выбранные смены и история договорённостей.</div></div></section>
 <section id="messagesPage" class="page"><div class="section-head"><h2>Сообщения</h2></div><div class="card"><div class="empty">После подключения авторизации здесь появятся диалоги с руководителями и сотрудниками.</div></div></section>
 <section id="profilePage" class="page">
   <div class="section-head"><h2>Мой профиль</h2></div>
-  <p class="notice">Анкеты пока сохраняются только в этом браузере.</p>
+  <p id="profileNotice" class="notice" role="status">Демо-анкеты сохраняются только в этом браузере.</p>
+  <button id="profileReload" class="btn ghost" type="button" hidden>Повторить загрузку анкет</button>
   <div class="switch" role="group" aria-label="Анкеты профиля">
     <button type="button" class="active" data-profile-role="worker" aria-controls="workerProfile" aria-pressed="true">Сотрудник</button>
     <button type="button" data-profile-role="manager" aria-controls="managerProfile" aria-pressed="false">Руководитель</button>
@@ -179,63 +182,175 @@ document.getElementById('createForm').addEventListener('submit',event=>{
 });
 renderHome();renderPeople();
 
-// Анкеты хранятся независимо. Поля контактов без name не входят в FormData.
-(function initLocalProfile(){
+const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
+  Boolean(window.Telegram.WebApp.initData);
+
+const profileEditor = (function initProfiles(){
   const profile = document.getElementById('profilePage');
+  const notice = document.getElementById('profileNotice');
+  const reload = document.getElementById('profileReload');
   const roleButtons = profile.querySelectorAll('[data-profile-role]');
+  const editors = {};
+  const platforms = { Ozon: 'ozon', Wildberries: 'wildberries', 'Яндекс Маркет': 'yandex_market' };
+  const platformNames = Object.fromEntries(Object.entries(platforms).map(([name, code]) => [code, name]));
+  let request = null;
+  let loaded = false;
+
+  function setNotice(message, canRetry = false) {
+    notice.textContent = message;
+    reload.hidden = !canRetry;
+  }
+
+  async function load() {
+    const activeRequest = request;
+    if (!activeRequest) return;
+    setNotice('Загружаем ваши анкеты…');
+    try {
+      const response = await activeRequest('GET');
+      if (request !== activeRequest) return;
+      if (!response.ok) throw new Error('Profiles unavailable');
+      const { worker, manager, contacts } = response.data;
+      if (worker === undefined || manager === undefined) throw new Error('Invalid profile response');
+      if (worker) {
+        editors.worker.fill({
+          ...worker,
+          platforms: worker.platforms.map(code => platformNames[code]),
+          workTypes: [
+            worker.accepts_single_shifts ? 'Разовые смены' : '',
+            worker.accepts_permanent_work ? 'Постоянная работа' : ''
+          ]
+        }, contacts?.worker);
+      }
+      if (manager) {
+        editors.manager.fill({
+          ...manager, pickupPoint: manager.pickup_point, platform: platformNames[manager.platform]
+        }, contacts?.manager);
+      }
+      loaded = true;
+      for (const editor of Object.values(editors)) editor.lock(false);
+      setNotice('Анкеты сохраняются в вашем аккаунте. Контакты доступны только вам.');
+    } catch {
+      if (request === activeRequest) setNotice('Не удалось загрузить анкеты. Проверьте сеть и повторите.', true);
+    }
+  }
 
   for (const button of roleButtons) {
     const form = document.getElementById(button.getAttribute('aria-controls'));
-    const storageKey = 'podmena.profile.v1.' + button.dataset.profileRole;
+    const role = button.dataset.profileRole;
+    const storageKey = 'podmena.profile.v1.' + role;
     const status = form.querySelector('.profile-status');
-    const groups = form.querySelectorAll('[data-required-group]');
+    const contact = document.getElementById(role === 'worker' ? 'workerPhone' : 'managerContact');
+    const groups = Array.from(form.querySelectorAll('[data-required-group]'), group => {
+      const firstOption = group.querySelector('input');
+      const validate = () => {
+        firstOption.setCustomValidity(group.querySelector('input:checked') ? '' : group.dataset.requiredGroup);
+      };
+      group.addEventListener('change', validate);
+      return { name: firstOption.name, validate };
+    });
+    const validateGroups = () => groups.forEach(group => group.validate());
+    const lock = disabled => {
+      for (const control of form.elements) {
+        if (control.tagName !== 'FIELDSET') control.disabled = disabled;
+      }
+    };
 
     function showStatus(message, error = false) {
       status.textContent = message;
       status.toggleAttribute('data-error', error);
     }
 
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey));
-      if (saved && typeof saved === 'object') {
-        for (const field of form.querySelectorAll('[name]')) {
-          const value = saved[field.name];
-          if (field.type === 'checkbox') {
-            field.checked = Array.isArray(value) && value.includes(field.value);
-          } else if (typeof value === 'string') {
-            field.value = value;
-          }
+    function fill(data, privateContact = '') {
+      for (const field of form.querySelectorAll('[name]')) {
+        const value = data[field.name];
+        if (field.type === 'checkbox') {
+          field.checked = Array.isArray(value) && value.includes(field.value);
+        } else if (typeof value === 'string') {
+          field.value = value;
         }
-        showStatus('Анкета сохранена в этом браузере.');
       }
-    } catch {
-      showStatus('Не удалось загрузить локальную анкету.', true);
+      contact.value = privateContact ?? '';
+      validateGroups();
     }
 
-    for (const group of groups) {
-      const firstOption = group.querySelector('input');
-      const validate = () => {
-        const checked = group.querySelector('input:checked');
-        firstOption.setCustomValidity(checked ? '' : group.dataset.requiredGroup);
-      };
-      group.addEventListener('change', validate);
-      validate();
+    editors[role] = {
+      fill, lock,
+      reset() {
+        form.reset();
+        validateGroups();
+        showStatus('');
+      }
+    };
+    validateGroups();
+    if (hasTelegramInitData) {
+      lock(true);
+      form.autocomplete = 'off';
+      for (const field of form.querySelectorAll('input[autocomplete]')) field.autocomplete = 'off';
+      document.getElementById(contact.getAttribute('aria-describedby')).textContent =
+        'Контакт видите только вы. Чтобы удалить его, очистите поле и сохраните анкету.';
+    } else {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && typeof saved === 'object') {
+          fill(saved);
+          showStatus('Анкета сохранена в этом браузере.');
+        }
+      } catch {
+        showStatus('Не удалось загрузить локальную анкету.', true);
+      }
     }
 
     form.addEventListener('input', () => showStatus(''));
-    form.addEventListener('submit', event => {
+    let saving = false;
+    form.addEventListener('submit', async event => {
       event.preventDefault();
+      if (hasTelegramInitData && (!request || !loaded || saving)) return;
       const fields = new FormData(form);
       const data = Object.fromEntries(Array.from(fields, ([key, value]) => [key, value.trim()]));
-      for (const group of groups) {
-        const name = group.querySelector('input').name;
-        data[name] = fields.getAll(name);
+      for (const { name } of groups) data[name] = fields.getAll(name);
+
+      if (!hasTelegramInitData) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(data));
+          showStatus('Анкета сохранена в этом браузере.');
+        } catch {
+          showStatus('Не удалось сохранить анкету. Проверьте, разрешено ли локальное хранение.', true);
+        }
+        return;
       }
+
+      const { name, city, district } = data;
+      const shared = { name, city, district };
+      const payload = role === 'worker' ? {
+        ...shared, platforms: data.platforms.map(label => platforms[label]),
+        experience: data.experience, about: data.about,
+        accepts_single_shifts: data.workTypes.includes('Разовые смены'),
+        accepts_permanent_work: data.workTypes.includes('Постоянная работа')
+      } : {
+        ...shared, pickup_point: data.pickupPoint,
+        platform: platforms[data.platform], conditions: data.conditions
+      };
+      const activeRequest = request;
+      saving = true;
+      lock(true);
+      showStatus('Сохраняем анкету…');
       try {
-        localStorage.setItem(storageKey, JSON.stringify(data));
-        showStatus('Анкета сохранена в этом браузере.');
+        const response = await activeRequest('PUT', { role, profile: payload, contact: contact.value.trim() });
+        if (request !== activeRequest) return;
+        if (response.status === 400) {
+          showStatus('Сервер отклонил данные анкеты. Проверьте поля и сохраните снова.', true);
+        } else if (response.ok && response.data.saved === true) {
+          showStatus('Анкета сохранена в вашем аккаунте.');
+        } else {
+          showStatus('Сохранение не подтверждено. Попробуйте сохранить ещё раз.', true);
+        }
       } catch {
-        showStatus('Не удалось сохранить анкету. Проверьте, разрешено ли локальное хранение.', true);
+        if (request === activeRequest) {
+          showStatus('Сохранение не подтверждено. Проверьте сеть и попробуйте ещё раз.', true);
+        }
+      } finally {
+        saving = false;
+        if (request === activeRequest) lock(false);
       }
     });
 
@@ -248,6 +363,24 @@ renderHome();renderPeople();
       }
     });
   }
+
+  if (hasTelegramInitData) setNotice('Войдите через Telegram, чтобы открыть ваши анкеты.');
+  reload.addEventListener('click', load);
+  return {
+    connect(send) {
+      request = send;
+      load();
+    },
+    disconnect() {
+      request = null;
+      loaded = false;
+      for (const editor of Object.values(editors)) {
+        editor.reset();
+        editor.lock(true);
+      }
+      setNotice('Анкеты доступны после входа через Telegram.');
+    }
+  };
 })();
 
 (function initTelegramMiniApp(){
@@ -258,7 +391,7 @@ renderHome();renderPeople();
   } catch {
     console.warn('Не удалось настроить окно Telegram.');
   }
-  if (typeof tg?.initData !== 'string' || !tg.initData) return;
+  if (!hasTelegramInitData) return;
 
   const status = document.getElementById('telegramStatus');
   const retry = document.getElementById('telegramRetry');
@@ -273,8 +406,9 @@ renderHome();renderPeople();
     return;
   }
   const endpoint = new URL('/functions/v1/telegram-auth-', projectUrl);
+  const profilesEndpoint = new URL('/functions/v1/telegram-profiles', projectUrl);
   const reopen = ' Закройте Mini App и откройте его заново через бота в Telegram.';
-  const signedIn = 'Вход через Telegram подтверждён. Анкеты и смены пока работают в деморежиме.';
+  const signedIn = 'Вход через Telegram подтверждён. Смены и поиск пока работают в деморежиме.';
 
   // The server session exists only in this page's memory.
   let session = null;
@@ -284,7 +418,40 @@ renderHome();renderPeople();
   function endSession(message) {
     clearTimeout(expiryTimer);
     session = null;
+    profileEditor.disconnect();
     showStatus(message + reopen);
+  }
+
+  async function send(url, method, token, body) {
+    const headers = {};
+    if (token) headers.Authorization = 'Bearer ' + token;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(url, {
+        method, headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal, cache: 'no-store', credentials: 'omit',
+        redirect: 'error', referrerPolicy: 'no-referrer'
+      });
+      return { status: response.status, ok: response.ok, data: response.ok ? await response.json() : null };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function requestProfiles(method, body) {
+    const current = session;
+    if (!current) throw new Error('Session unavailable');
+    if (current.expiresAt <= Date.now()) {
+      endSession('Срок действия сессии истёк.');
+      throw new Error('Session expired');
+    }
+    const response = await send(profilesEndpoint, method, current.token, body);
+    if (session !== current) throw new Error('Session ended');
+    if (response.status === 401) endSession('Сессия больше недействительна.');
+    return response;
   }
 
   async function checkTelegram() {
@@ -297,21 +464,9 @@ renderHome();renderPeople();
 
     requestInProgress = true;
     showStatus(current ? 'Проверяем сессию Telegram…' : 'Проверяем вход через Telegram…');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
-      const response = await fetch(endpoint, {
-        method: current ? 'GET' : 'POST',
-        headers: current
-          ? { Authorization: 'Bearer ' + current.token }
-          : { 'Content-Type': 'application/json' },
-        body: current ? undefined : JSON.stringify({ initData: tg.initData }),
-        signal: controller.signal,
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer'
-      });
+      const response = current ? await send(endpoint, 'GET', current.token)
+        : await send(endpoint, 'POST', undefined, { initData: tg.initData });
       if (session !== current) return;
       if (response.status === 401 || response.status === 400) {
         endSession(current ? 'Сессия больше недействительна.' : 'Данные для входа недействительны или устарели.');
@@ -330,9 +485,7 @@ renderHome();renderPeople();
         return;
       }
 
-      const result = await response.json();
-      if (session !== current) return;
-      const { userId, sessionToken, expiresAt } = result ?? {};
+      const { userId, sessionToken, expiresAt } = response.data ?? {};
       const expiry = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
       const validUser = typeof userId === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
@@ -347,6 +500,7 @@ renderHome();renderPeople();
       if (!current) {
         session = { userId, token: sessionToken, expiresAt: expiry };
         expiryTimer = setTimeout(() => endSession('Срок действия сессии истёк.'), expiry - Date.now());
+        profileEditor.connect(requestProfiles);
       }
       showStatus(signedIn);
     } catch {
@@ -354,7 +508,6 @@ renderHome();renderPeople();
         showStatus('Не удалось связаться с сервером входа. Проверьте интернет и повторите.', true);
       }
     } finally {
-      clearTimeout(timeout);
       requestInProgress = false;
     }
   }

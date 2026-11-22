@@ -1,0 +1,19 @@
+project_id = "podmena"
+
+[functions.telegram-auth-]
+# The function verifies Telegram initData or its own session on every request.
+verify_jwt = false
+
+[functions.telegram-profiles]
+# The database validates the opaque Telegram session on each profile operation.
+verify_jwt = false
+
+[functions.telegram-shifts]
+# Each shift operation verifies the Telegram session in PostgreSQL.
+verify_jwt = false
+
+[functions.telegram-social]
+verify_jwt = false
+
+[functions.telegram-notifications]
+verify_jwt = false

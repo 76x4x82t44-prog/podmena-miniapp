@@ -5,11 +5,26 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   const createStatus = byId('shiftCreateStatus');
   const filter = byId('shiftFilter');
   const actions = document.querySelector('main');
+  const dialog = byId('shiftActionDialog');
+  const dialogForm = byId('shiftActionForm');
+  const dialogReason = byId('shiftActionReason');
+  const dialogError = byId('shiftActionError');
+  const dialogSubmit = byId('shiftActionSubmit');
+  const dialogBack = byId('shiftActionBack');
   const platforms = { ozon: 'Ozon', wildberries: 'Wildberries', yandex_market: 'Яндекс Маркет' };
-  const shiftStatus = { open: 'Открыта', confirmed: 'Исполнитель выбран', completed: 'Завершена', cancelled: 'Отменена' };
+  const shiftStatus = {
+    open: 'Открыта', confirmed: 'Исполнитель выбран', completed: 'Завершена',
+    cancelled: 'Смена отменена', needs_replacement: 'Сотрудник отказался'
+  };
   const applicationStatus = {
     pending: 'Отклик отправлен', selected: 'Вы выбраны', not_selected: 'Выбран другой исполнитель',
-    closed: 'Приём откликов завершён', cancelled: 'Смена отменена'
+    closed: 'Приём откликов завершён', cancelled: 'Смена отменена',
+    withdrawn: 'Отклик отозван', declined: 'Вы отказались от смены'
+  };
+  const success = {
+    apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', complete: 'Смена завершена.',
+    cancel: 'Смена отменена.', withdraw: 'Отклик отозван.', decline: 'Вы отказались от смены.',
+    reopen: 'Смена снова открыта для откликов.'
   };
   const errors = {
     manager_profile_required: 'Сначала сохраните анкету руководителя в разделе «Профиль».',
@@ -19,6 +34,12 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     application_not_found: 'Этот отклик недоступен.',
     shift_not_open: 'Смена уже закрыта для этого действия.',
     shift_not_ready_to_complete: 'Смену можно завершить после окончания работы.',
+    shift_terminal: 'Смена завершена или отменена.',
+    application_inactive: 'Этот отклик уже отозван или сотрудник отказался.',
+    application_already_selected: 'Вас уже назначили. Чтобы снять назначение, откажитесь от смены.',
+    application_not_selected: 'Назначение больше не действует.',
+    shift_already_started: 'Смена уже началась. Повторно открыть поиск нельзя.',
+    shift_state_changed: 'Статус смены изменился. Проверьте его перед повторным действием.',
     invalid_shift_time: 'Укажите будущее время начала и другое время окончания.',
     invalid_request: 'Проверьте поля формы и попробуйте ещё раз.'
   };
@@ -33,6 +54,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   let pendingCreate = null;
   let publishing = false;
   let mutating = false;
+  let confirmation = null;
 
   byId('demoListings').hidden = true;
   byId('liveListings').hidden = false;
@@ -67,6 +89,12 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     return `${format.format(new Date(shift.starts_at))} — ${format.format(new Date(shift.ends_at))}`;
   }
 
+  function historyLine(label, date, reason) {
+    if (!date) return '';
+    const time = new Date(date).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+    return `<p class="small">${escapeHtml(label)} · ${escapeHtml(time)}${reason ? ` · ${escapeHtml(reason)}` : ''}</p>`;
+  }
+
   function shiftCard(shift, type) {
     let info = '';
     let controls = '';
@@ -76,17 +104,27 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     if (type === 'browse') {
       if (shift.can_apply) controls = button('apply', 'Откликнуться', shift.id);
       else if (shift.applied) info = 'Отклик отправлен';
+      else if (shift.inactive_application) info = applicationStatus[shift.inactive_application];
       else if (shift.own_shift) info = 'Ваше объявление';
       else controls = button('profile', 'Заполнить анкету сотрудника');
     } else if (type === 'owned') {
       controls = button('respondents', `Отклики (${shift.application_count})`, shift.id, '', `${shift.city} · ${shift.pickup_point}`);
-      if (open) controls += button('cancel', 'Отменить смену', shift.id);
+      if (shift.status !== 'completed' && shift.status !== 'cancelled') {
+        controls += button('cancel', 'Отменить смену', shift.id,
+          shift.confirmed_application_id ?? shift.replacement_application_id ?? '', shift.status);
+      }
+      if (shift.can_reopen) controls += button('reopen', 'Снова открыть поиск', shift.id, shift.replacement_application_id);
       if (shift.status === 'confirmed' && Date.parse(shift.ends_at) <= Date.now()) {
         controls += button('complete', 'Завершить смену', shift.id);
       }
       if (open && !future) info = 'Приём откликов завершён';
+      if (shift.status === 'needs_replacement' && !shift.can_reopen) {
+        info = 'Смена уже началась. Повторно открыть поиск нельзя.';
+      }
     } else {
       info = applicationStatus[shift.application_status];
+      if (shift.can_withdraw) controls = button('withdraw', 'Отозвать отклик', shift.id, shift.application_id);
+      if (shift.can_decline) controls = button('decline', 'Отказаться от смены', shift.id, shift.application_id);
     }
 
     return `<article class="card shift-card">
@@ -96,6 +134,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       <div class="price">${escapeHtml(Number(shift.pay_rubles).toLocaleString('ru-RU'))} ₽</div>
       ${shift.notes ? `<p class="small">${escapeHtml(shift.notes)}</p>` : ''}
       ${info ? `<div class="name">${escapeHtml(info)}</div>` : ''}
+      ${historyLine('Отклик отозван', shift.withdrawn_at)}
+      ${historyLine('Отказ от смены', shift.declined_at, shift.decline_reason)}
+      ${historyLine('Смена отменена', shift.cancelled_at, shift.cancellation_reason)}
       ${controls ? `<div class="shift-actions">${controls}</div>` : ''}
     </article>`;
   }
@@ -105,6 +146,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       <div class="name">${escapeHtml(entry.name)}</div>
       <div class="details">${escapeHtml(entry.city)} · ${escapeHtml(entry.district)} · ${escapeHtml(entry.experience)}</div>
       ${entry.selected ? '<span class="tag">Исполнитель выбран</span>' : ''}
+      ${historyLine('Назначение', entry.assigned_at)}
+      ${historyLine('Отклик отозван', entry.withdrawn_at)}
+      ${historyLine('Сотрудник отказался', entry.declined_at, entry.decline_reason)}
       ${entry.can_confirm ? `<div class="shift-actions">${button('confirm', 'Выбрать исполнителя', respondents.id, entry.id)}</div>` : ''}
     </article>`;
   }
@@ -175,7 +219,80 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   byId('myListings').addEventListener('click', () => showMine('owned'));
   byId('backFromRespondents').addEventListener('click', () => showPage(respondents?.back ?? 'shiftsPage'));
 
-  actions.addEventListener('click', async event => {
+  function askConfirmation(action, input, shiftStatus) {
+    confirmation = { action, input };
+    dialogForm.reset();
+    dialogError.textContent = '';
+    if (action === 'decline') {
+      byId('shiftActionTitle').textContent = 'Отказаться от смены?';
+      byId('shiftActionWarning').textContent =
+        'Вы больше не будете исполнителем. Руководитель увидит отказ и указанную причину.';
+    } else {
+      byId('shiftActionTitle').textContent = 'Отменить смену?';
+      byId('shiftActionWarning').textContent = shiftStatus === 'confirmed'
+        ? 'На смену уже назначен сотрудник. Отмена снимет назначение и закроет смену.'
+        : 'Смена исчезнет из поиска. Отклики останутся в истории.';
+    }
+    dialog.showModal();
+  }
+
+  function closeConfirmation() {
+    if (dialog.open) dialog.close();
+    confirmation = null;
+    dialogForm.reset();
+    dialogError.textContent = '';
+  }
+
+  dialogBack.addEventListener('click', closeConfirmation);
+  dialog.addEventListener('cancel', event => {
+    event.preventDefault();
+    if (!mutating) closeConfirmation();
+  });
+  dialogForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!confirmation) return;
+    const { action, input } = confirmation;
+    mutate(action, { ...input, reason: dialogReason.value.trim() }, dialogSubmit);
+  });
+
+  async function mutate(action, input, control) {
+    if (!request || mutating) return;
+    const active = request;
+    const activeView = view;
+    const fromDialog = control === dialogSubmit;
+    const report = message => {
+      if (fromDialog && dialog.open) dialogError.textContent = message;
+      else toast(message);
+    };
+    mutating = true;
+    control.disabled = true;
+    if (fromDialog) {
+      dialogReason.disabled = true;
+      dialogBack.disabled = true;
+      dialogError.textContent = '';
+    }
+    try {
+      const response = await active(action, input);
+      if (request !== active) return;
+      const saved = response.ok && response.data?.saved === true;
+      const refresh = saved || response.status === 409 || response.status === 404;
+      if (refresh && fromDialog) closeConfirmation();
+      report(saved ? (response.data.replayed ? 'Действие уже было выполнено.' : success[action])
+        : errors[response.data?.error] ?? 'Действие не подтверждено. Попробуйте ещё раз.');
+      if (view === activeView && refresh) readPage(page);
+    } catch {
+      if (request === active) report('Действие не подтверждено. Проверьте интернет и повторите.');
+    } finally {
+      mutating = false;
+      control.disabled = false;
+      if (fromDialog) {
+        dialogReason.disabled = false;
+        dialogBack.disabled = false;
+      }
+    }
+  }
+
+  actions.addEventListener('click', event => {
     const control = event.target.closest('[data-shift-action]');
     if (!control || !request) return;
     const { shiftAction: action, id, extra, heading } = control.dataset;
@@ -193,23 +310,11 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       return;
     }
     if (mutating) return;
-    const active = request;
-    const activeView = view;
-    mutating = true;
-    control.disabled = true;
-    try {
-      const response = await active(action, { shift_id: id, ...(extra ? { application_id: extra } : {}) });
-      if (request !== active) return;
-      const success = { apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', cancel: 'Смена отменена.', complete: 'Смена завершена.' };
-      toast(response.ok && response.data?.saved === true
-        ? success[action] : errors[response.data?.error] ?? 'Действие не подтверждено. Попробуйте ещё раз.');
-      if (view === activeView && (response.ok || response.status === 409)) readPage(page);
-    } catch {
-      if (request === active) toast('Действие не подтверждено. Проверьте интернет и повторите.');
-    } finally {
-      mutating = false;
-      control.disabled = false;
-    }
+    const input = { shift_id: id };
+    if (action === 'cancel') input.expected_application_id = extra || null;
+    else if (extra) input.application_id = extra;
+    if (action === 'decline' || action === 'cancel') askConfirmation(action, input, heading);
+    else mutate(action, input, control);
   });
 
   form.addEventListener('submit', async event => {
@@ -261,6 +366,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       request = null;
       respondents = null;
       pendingCreate = null;
+      closeConfirmation();
       form.reset();
       createStatus.textContent = '';
       lockCreate(true);

@@ -31,6 +31,10 @@
 .shift-card p{white-space:pre-wrap}
 #primaryAction{margin-bottom:12px}
 button:disabled{opacity:.6;cursor:default}
+#shiftActionDialog{width:min(420px,calc(100% - 32px));max-height:calc(100% - 32px);margin:auto;color:var(--ink)}
+#shiftActionDialog::backdrop{background:#10251e88}
+#shiftActionDialog h2{font-size:18px;margin:0}
+#shiftActionDialog textarea{font-size:16px}
 </style></head><body><div class="app">
 <header class="top"><div class="brand"><div class="logo">↔</div> ПОДМЕНА</div><div class="sub">Смены и сотрудники ПВЗ в Санкт-Петербурге</div><div class="hero">Найди смену.<br>Найди надёжную замену.</div><div class="hero-sub">Ozon · Wildberries · Яндекс Маркет</div><div class="city"><span>⌖ Санкт-Петербург</span><span>Город запуска　⌄</span></div></header>
 <main class="content">
@@ -186,9 +190,21 @@ button:disabled{opacity:.6;cursor:default}
     <p id="shiftCreateStatus" class="profile-status" role="status"></p>
   </form>
 </section>
+<dialog id="shiftActionDialog" class="card" aria-labelledby="shiftActionTitle" aria-describedby="shiftActionWarning">
+  <form id="shiftActionForm">
+    <h2 id="shiftActionTitle"></h2>
+    <p id="shiftActionWarning"></p>
+    <div class="field"><label for="shiftActionReason">Причина (необязательно)</label><textarea id="shiftActionReason" maxlength="500"></textarea></div>
+    <p id="shiftActionError" class="profile-status" data-error role="status"></p>
+    <div class="shift-actions">
+      <button id="shiftActionBack" class="btn ghost" type="button">Назад</button>
+      <button id="shiftActionSubmit" class="btn" type="submit">Подтвердить</button>
+    </div>
+  </form>
+</dialog>
 </main>
 <nav class="tabs"><button class="tab active" data-page="homePage" onclick="showPage('homePage',this)"><b>⌂</b>Главная</button><button class="tab" data-page="searchPage" onclick="showPage('searchPage',this)"><b>⌕</b>Поиск</button><button class="tab" data-page="shiftsPage" onclick="showPage('shiftsPage',this)"><b>▦</b>Смены</button><button class="tab" data-page="messagesPage" onclick="showPage('messagesPage',this)"><b>☏</b>Чаты</button><button class="tab" data-page="profilePage" onclick="showPage('profilePage',this)"><b>♙</b>Профиль</button></nav><div class="toast" id="toast"></div>
-</div><script src="shifts.js"></script><script>
+</div><script src="shifts.js?v=3d"></script><script>
 const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
   Boolean(window.Telegram.WebApp.initData);
 let mode='worker';

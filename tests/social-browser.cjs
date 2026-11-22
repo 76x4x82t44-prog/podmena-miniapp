@@ -108,11 +108,12 @@ async function run() {
     await authed.getByRole('button', { name: /Ищу замену/ }).click();
     await authed.getByRole('button', { name: /Поиск/ }).click();
     await authed.getByText('Тестовый сотрудник', { exact: true }).waitFor();
-    await authed.getByLabel('Город', { exact: true }).fill('Санкт');
-    await authed.getByLabel('Район', { exact: true }).fill('Центральный');
-    await authed.getByLabel('Площадка', { exact: true }).selectOption('ozon');
-    await authed.getByLabel('Опыт на ПВЗ', { exact: true }).selectOption('Без опыта');
-    await authed.getByLabel('Формат', { exact: true }).selectOption('single');
+    const filters = authed.locator('#pilotCatalogFilters');
+    await filters.getByLabel('Город', { exact: true }).fill('Санкт');
+    await filters.getByLabel('Район', { exact: true }).fill('Центральный');
+    await filters.getByLabel('Площадка', { exact: true }).selectOption('ozon');
+    await filters.getByLabel('Опыт на ПВЗ', { exact: true }).selectOption('Без опыта');
+    await filters.getByLabel('Формат', { exact: true }).selectOption('single');
     await authed.getByRole('button', { name: 'Найти сотрудников' }).click();
     await authed.getByText('Тестовый сотрудник', { exact: true }).waitFor();
     assert.deepEqual(observed.filter(row => row.action === 'catalog').at(-1).input, {

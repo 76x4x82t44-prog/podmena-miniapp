@@ -114,6 +114,25 @@ begin
      or (select status::text from podmena.shifts s where s.id=stage.shift_id) <> 'confirmed' then
     raise exception 'settlement completed or paid the shift instead of awaiting confirmation';
   end if;
+  perform public.podmena_shift_action(repeat('3',64),'confirm_completion',jsonb_build_object('shift_id',shift_id));
+  perform public.podmena_shift_action(repeat('2',64),'review',
+    jsonb_build_object('shift_id',shift_id,'stars',5,'comment','Только для участника'));
+  result := public.podmena_shift_action(repeat('2',64),'review',
+    jsonb_build_object('shift_id',shift_id,'stars',5,'comment','Только для участника'));
+  if result->>'replayed' is distinct from 'true' or
+     (select count(*) from podmena.shift_reviews r where r.shift_id=stage.shift_id) <> 1 then
+    raise exception 'duplicate review was not deduplicated';
+  end if;
+  begin
+    perform public.podmena_shift_action(repeat('2',64),'review',
+      jsonb_build_object('shift_id',shift_id,'stars',4,'comment','Другая оценка'));
+    raise exception 'a second review changed the prior review';
+  exception when sqlstate 'PT409' then null;
+  end;
+  result := public.podmena_shift_action(repeat('4',64),'reputation',jsonb_build_object('actor_id',worker_id));
+  if position('Только для участника' in result::text) > 0 then
+    raise exception 'stranger received another account private rating';
+  end if;
 end;
 $test$;
 rollback;

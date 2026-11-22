@@ -7,6 +7,9 @@ declare
   sid uuid;
   aid uuid;
   item jsonb;
+  current_round text;
+  current_offer text;
+  target jsonb;
 begin
   insert into podmena.telegram_users(telegram_id) values(4499999900001) returning id into mid;
   insert into podmena.telegram_users(telegram_id) values(4499999900002) returning id into wid;
@@ -25,7 +28,8 @@ begin
   insert into podmena.shift_completions(shift_id,application_id,requested_at,decision,decided_at,dispute_reason)
     values(sid,aid,now()-interval '60 minutes','disputed',now()-interval '30 minutes','Тестовый спор');
   insert into podmena.shift_dispute_events(shift_id,actor_id,actor_role,action,message)
-    values(sid,wid,'worker','opened','Тестовый спор');
+    values(sid,wid,'worker','opened','Тестовый спор') returning id::text into current_round;
+  target := jsonb_build_object('shift_id',sid,'round_id',current_round);
 
   select card into item from jsonb_array_elements(public.podmena_shift_action(repeat('a',64),'owned','{"page":0}'::jsonb)->'items') card
     where (card->>'id')::uuid=sid;
@@ -39,26 +43,27 @@ begin
   end if;
 
   begin
-    perform public.podmena_shift_action(repeat('a',64),'withdraw_dispute',jsonb_build_object('shift_id',sid));
+    perform public.podmena_shift_action(repeat('a',64),'withdraw_dispute',target || jsonb_build_object('request_id',gen_random_uuid()));
     raise exception 'manager was able to withdraw worker dispute';
   exception when sqlstate 'PT404' then null;
   end;
   begin
-    perform public.podmena_shift_action(repeat('b',64),'accept_dispute',jsonb_build_object('shift_id',sid));
+    perform public.podmena_shift_action(repeat('b',64),'accept_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'offer_id',current_round));
     raise exception 'worker was able to accept nonexistent proposal';
   exception when sqlstate 'PT409' then null;
   end;
 
-  perform public.podmena_shift_action(repeat('a',64),'reply_dispute',jsonb_build_object('shift_id',sid,'message','Урегулируем вопрос'));
-  perform public.podmena_shift_action(repeat('b',64),'comment_dispute',jsonb_build_object('shift_id',sid,'message','Пока не согласен'));
+  perform public.podmena_shift_action(repeat('a',64),'reply_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'message','Урегулируем вопрос'));
+  perform public.podmena_shift_action(repeat('b',64),'comment_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'message','Пока не согласен'));
   begin
-    perform public.podmena_shift_action(repeat('b',64),'accept_dispute',jsonb_build_object('shift_id',sid));
+    perform public.podmena_shift_action(repeat('b',64),'accept_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'offer_id',current_round));
     raise exception 'worker could accept superseded proposal';
   exception when sqlstate 'PT409' then null;
   end;
 
-  perform public.podmena_shift_action(repeat('a',64),'reply_dispute',jsonb_build_object('shift_id',sid,'message','Новое предложение'));
-  perform public.podmena_shift_action(repeat('b',64),'accept_dispute',jsonb_build_object('shift_id',sid));
+  perform public.podmena_shift_action(repeat('a',64),'reply_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'message','Новое предложение'));
+  select e.id::text into current_offer from podmena.shift_dispute_events e where e.shift_id=sid order by e.id desc limit 1;
+  perform public.podmena_shift_action(repeat('b',64),'accept_dispute',target || jsonb_build_object('request_id',gen_random_uuid(),'offer_id',current_offer));
   if (select decision from podmena.shift_completions where shift_id=sid)<>'pending' then
     raise exception 'settlement did not restore pending confirmation';
   end if;

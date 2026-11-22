@@ -1,0 +1,16 @@
+{
+  "name": "podmena-pilot-tests",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "npm run test:sql && npm run test:edge && npm run test:browser",
+    "test:sql": "node run-sql.mjs",
+    "test:edge": "node --test *.test.mjs",
+    "test:browser": "node --test pilot-ui.test.cjs social-browser.cjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.17",
+    "playwright": "1.62.1"
+  }
+}

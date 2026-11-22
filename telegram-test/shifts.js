@@ -24,12 +24,16 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   };
   const completionStatus = {
     pending: 'Ожидает подтверждения сотрудника', confirmed: 'Выполнение подтверждено',
-    disputed: 'Есть спор по смене', legacy: 'Завершена до введения подтверждений'
+    disputed: 'Есть спор по смене', awaiting_request: 'Ожидает отметки руководителем', legacy: 'Завершена до введения подтверждений'
   };
   const success = {
     apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', request_completion: 'Запрос на подтверждение отправлен.',
     confirm_completion: 'Выполнение смены подтверждено.', dispute_completion: 'Сообщение о споре сохранено.',
     review: 'Отзыв сохранён.',
+    withdraw_dispute: 'Спор отозван. Подтвердить выполнение можно отдельным действием.',
+    reply_dispute: 'Ответ руководителя сохранён.',
+    comment_dispute: 'Ваш ответ сохранён. Спор остаётся открытым.',
+    accept_dispute: 'Предложение принято. Спор закрыт, выполнение ещё нужно подтвердить.',
     cancel: 'Смена отменена.', withdraw: 'Отклик отозван.', decline: 'Вы отказались от смены.',
     reopen: 'Смена снова открыта для откликов.'
   };
@@ -52,6 +56,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     completion_disputed: 'По смене заявлен спор. Подтверждение приостановлено.',
     completion_request_required: 'Руководитель ещё не отметил смену выполненной.',
     dispute_reason_required: 'Опишите спорную ситуацию.',
+    dispute_not_open: 'Этот спор уже закрыт. Обновите страницу.',
+    dispute_offer_required: 'Новое предложение руководителя отсутствует.',
+    dispute_message_required: 'Введите сообщение до 500 символов.',
     review_self_forbidden: 'Оценивать свой аккаунт нельзя.',
     review_completion_required: 'Отзыв можно оставить после подтверждения смены обеими сторонами.',
     review_already_exists: 'Вы уже оставили отзыв об этой смене.',
@@ -131,6 +138,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       }
       if (shift.can_reopen) controls += button('reopen', 'Снова открыть поиск', shift.id, shift.replacement_application_id);
       if (shift.can_request_completion) controls += button('request_completion', 'Отметить выполненной', shift.id);
+      if (shift.can_reply_dispute) controls += button('reply_dispute', 'Ответить на спор', shift.id);
       if (open && !future) info = 'Приём откликов завершён';
       if (shift.status === 'needs_replacement' && !shift.can_reopen) {
         info = 'Смена уже началась. Повторно открыть поиск нельзя.';
@@ -141,11 +149,20 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       if (shift.can_decline && !finishing) controls = button('decline', 'Отказаться от смены', shift.id, shift.application_id);
       if (shift.can_confirm_completion) controls += button('confirm_completion', 'Подтвердить выполнение', shift.id);
       if (shift.can_dispute_completion) controls += button('dispute_completion', 'Сообщить о споре', shift.id);
+      if (shift.can_comment_dispute) controls += button('comment_dispute', 'Написать по спору', shift.id);
+      if (shift.can_accept_dispute) controls += button('accept_dispute', 'Принять предложение', shift.id);
+      if (shift.can_withdraw_dispute) controls += button('withdraw_dispute', 'Отозвать спор', shift.id);
     } else if (shift.can_review) {
       controls = button('review', 'Оставить отзыв', shift.id, '', shift.viewer_role);
     }
 
     const status = completionStatus[shift.completion_state] ?? shiftStatus[shift.status];
+    const disputeHistory = Array.isArray(shift.dispute_events) ? shift.dispute_events.map(event => {
+      const labels = { opened: 'Спор открыт сотрудником', manager_reply: 'Ответ руководителя',
+        worker_comment: 'Ответ сотрудника', withdrawn: 'Спор отозван сотрудником',
+        accepted: 'Предложение принято сотрудником' };
+      return historyLine(labels[event.action] ?? 'Действие по спору', event.created_at, event.message);
+    }).join('') : '';
     const history = type === 'work_history';
     const duration = history ? `${Math.floor(shift.minutes / 60)} ч ${shift.minutes % 60} мин` : '';
     return `<article class="card shift-card">
@@ -156,7 +173,8 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       <div class="price">${escapeHtml(Number(shift.pay_rubles).toLocaleString('ru-RU'))} ₽</div>
       ${history ? '<p class="small">Выплата не подтверждена.</p>' : ''}
       ${shift.review ? `<p class="small">Ваш отзыв · ${escapeHtml(shift.review.stars)} из 5${shift.review.comment ? ` · ${escapeHtml(shift.review.comment)}` : ''}</p>` : ''}
-      ${shift.dispute_reason ? `<p class="small">Причина спора · ${escapeHtml(shift.dispute_reason)}</p>` : ''}
+      ${shift.dispute_reason && !disputeHistory ? `<p class="small">Причина спора · ${escapeHtml(shift.dispute_reason)}</p>` : ''}
+      ${disputeHistory ? `<div class="small"><strong>История спора</strong></div>${disputeHistory}` : ''}
       ${shift.notes ? `<p class="small">${escapeHtml(shift.notes)}</p>` : ''}
       ${info ? `<div class="name">${escapeHtml(info)}</div>` : ''}
       ${historyLine('Отклик отозван', shift.withdrawn_at)}
@@ -284,11 +302,12 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     dialogForm.reset();
     dialogError.textContent = '';
     byId('shiftStarsField').hidden = action !== 'review';
-    byId('shiftReasonField').hidden = action === 'confirm_completion';
+    byId('shiftReasonField').hidden = ['confirm_completion', 'withdraw_dispute', 'accept_dispute'].includes(action);
     byId('shiftReasonLabel').textContent = action === 'review' ? 'Отзыв (необязательно)'
-      : action === 'dispute_completion' ? 'Причина спора' : 'Причина (необязательно)';
+      : action === 'dispute_completion' ? 'Причина спора'
+      : ['reply_dispute', 'comment_dispute'].includes(action) ? 'Сообщение' : 'Причина (необязательно)';
     dialogStars.required = action === 'review';
-    dialogReason.required = action === 'dispute_completion';
+    dialogReason.required = ['dispute_completion', 'reply_dispute', 'comment_dispute'].includes(action);
     if (action === 'decline') {
       byId('shiftActionTitle').textContent = 'Отказаться от смены?';
       byId('shiftActionWarning').textContent =
@@ -299,6 +318,18 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     } else if (action === 'dispute_completion') {
       byId('shiftActionTitle').textContent = 'Сообщить о споре';
       byId('shiftActionWarning').textContent = 'Руководитель увидит причину. До решения спора завершение и отзывы недоступны.';
+    } else if (action === 'withdraw_dispute') {
+      byId('shiftActionTitle').textContent = 'Отозвать спор?';
+      byId('shiftActionWarning').textContent = 'Спор останется в истории. Если руководитель уже отметил работу, вы отдельно сможете подтвердить её выполнение. Выплата автоматически не подтверждается.';
+    } else if (action === 'accept_dispute') {
+      byId('shiftActionTitle').textContent = 'Принять предложение руководителя?';
+      byId('shiftActionWarning').textContent = 'Спор будет закрыт, но факт выполнения смены потребуется подтвердить отдельно. Выплата автоматически не подтверждается.';
+    } else if (action === 'reply_dispute') {
+      byId('shiftActionTitle').textContent = 'Ответить на спор';
+      byId('shiftActionWarning').textContent = 'Сотрудник увидит ваш ответ и сможет принять предложение или продолжить обсуждение. Только сотрудник закрывает спор.';
+    } else if (action === 'comment_dispute') {
+      byId('shiftActionTitle').textContent = 'Ответить руководителю';
+      byId('shiftActionWarning').textContent = 'Ваш ответ сохранится в истории. Спор останется открытым.';
     } else if (action === 'review') {
       byId('shiftActionTitle').textContent = context === 'manager' ? 'Оценить сотрудника' : 'Оценить руководителя';
       byId('shiftActionWarning').textContent = 'Получатель увидит оценку и текст. Отзыв сохраняется один раз.';
@@ -329,8 +360,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     const { action, input } = confirmation;
     const text = dialogReason.value.trim();
     const details = action === 'review' ? { stars: Number(dialogStars.value), comment: text }
-      : action === 'confirm_completion' ? {} : { reason: text };
-    if (action === 'dispute_completion' && !text) {
+      : ['confirm_completion', 'withdraw_dispute', 'accept_dispute'].includes(action) ? {}
+      : ['reply_dispute', 'comment_dispute'].includes(action) ? { message: text } : { reason: text };
+    if (['dispute_completion', 'reply_dispute', 'comment_dispute'].includes(action) && !text) {
       dialogError.textContent = 'Опишите спорную ситуацию.';
       return;
     }
@@ -401,7 +433,8 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     const input = { shift_id: id };
     if (action === 'cancel') input.expected_application_id = extra || null;
     else if (extra) input.application_id = extra;
-    if (['decline', 'cancel', 'confirm_completion', 'dispute_completion', 'review'].includes(action)) {
+    if (['decline', 'cancel', 'confirm_completion', 'dispute_completion', 'review',
+      'withdraw_dispute', 'reply_dispute', 'comment_dispute', 'accept_dispute'].includes(action)) {
       askConfirmation(action, input, heading);
     }
     else mutate(action, input, control);

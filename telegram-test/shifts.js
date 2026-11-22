@@ -8,6 +8,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   const dialog = byId('shiftActionDialog');
   const dialogForm = byId('shiftActionForm');
   const dialogReason = byId('shiftActionReason');
+  const dialogStars = byId('shiftActionStars');
   const dialogError = byId('shiftActionError');
   const dialogSubmit = byId('shiftActionSubmit');
   const dialogBack = byId('shiftActionBack');
@@ -21,8 +22,14 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     closed: 'Приём откликов завершён', cancelled: 'Смена отменена',
     withdrawn: 'Отклик отозван', declined: 'Вы отказались от смены'
   };
+  const completionStatus = {
+    pending: 'Ожидает подтверждения сотрудника', confirmed: 'Выполнение подтверждено',
+    disputed: 'Есть спор по смене', legacy: 'Завершена до введения подтверждений'
+  };
   const success = {
-    apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', complete: 'Смена завершена.',
+    apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', request_completion: 'Запрос на подтверждение отправлен.',
+    confirm_completion: 'Выполнение смены подтверждено.', dispute_completion: 'Сообщение о споре сохранено.',
+    review: 'Отзыв сохранён.',
     cancel: 'Смена отменена.', withdraw: 'Отклик отозван.', decline: 'Вы отказались от смены.',
     reopen: 'Смена снова открыта для откликов.'
   };
@@ -40,6 +47,14 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     application_not_selected: 'Назначение больше не действует.',
     shift_already_started: 'Смена уже началась. Повторно открыть поиск нельзя.',
     shift_state_changed: 'Статус смены изменился. Проверьте его перед повторным действием.',
+    completion_client_update: 'Перезапустите Mini App, чтобы загрузить новую версию.',
+    completion_under_review: 'Смена ожидает подтверждения или по ней заявлен спор.',
+    completion_disputed: 'По смене заявлен спор. Подтверждение приостановлено.',
+    completion_request_required: 'Руководитель ещё не отметил смену выполненной.',
+    dispute_reason_required: 'Опишите спорную ситуацию.',
+    review_self_forbidden: 'Оценивать свой аккаунт нельзя.',
+    review_completion_required: 'Отзыв можно оставить после подтверждения смены обеими сторонами.',
+    review_already_exists: 'Вы уже оставили отзыв об этой смене.',
     invalid_shift_time: 'Укажите будущее время начала и другое время окончания.',
     invalid_request: 'Проверьте поля формы и попробуйте ещё раз.'
   };
@@ -101,6 +116,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     const open = shift.status === 'open';
     const future = Date.parse(shift.starts_at) > Date.now();
 
+    const finishing = ['pending', 'disputed'].includes(shift.completion_state);
     if (type === 'browse') {
       if (shift.can_apply) controls = button('apply', 'Откликнуться', shift.id);
       else if (shift.applied) info = 'Отклик отправлен';
@@ -109,29 +125,38 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       else controls = button('profile', 'Заполнить анкету сотрудника');
     } else if (type === 'owned') {
       controls = button('respondents', `Отклики (${shift.application_count})`, shift.id, '', `${shift.city} · ${shift.pickup_point}`);
-      if (shift.status !== 'completed' && shift.status !== 'cancelled') {
+      if (shift.status !== 'completed' && shift.status !== 'cancelled' && !finishing) {
         controls += button('cancel', 'Отменить смену', shift.id,
           shift.confirmed_application_id ?? shift.replacement_application_id ?? '', shift.status);
       }
       if (shift.can_reopen) controls += button('reopen', 'Снова открыть поиск', shift.id, shift.replacement_application_id);
-      if (shift.status === 'confirmed' && Date.parse(shift.ends_at) <= Date.now()) {
-        controls += button('complete', 'Завершить смену', shift.id);
-      }
+      if (shift.can_request_completion) controls += button('request_completion', 'Отметить выполненной', shift.id);
       if (open && !future) info = 'Приём откликов завершён';
       if (shift.status === 'needs_replacement' && !shift.can_reopen) {
         info = 'Смена уже началась. Повторно открыть поиск нельзя.';
       }
-    } else {
+    } else if (type === 'outgoing') {
       info = applicationStatus[shift.application_status];
       if (shift.can_withdraw) controls = button('withdraw', 'Отозвать отклик', shift.id, shift.application_id);
-      if (shift.can_decline) controls = button('decline', 'Отказаться от смены', shift.id, shift.application_id);
+      if (shift.can_decline && !finishing) controls = button('decline', 'Отказаться от смены', shift.id, shift.application_id);
+      if (shift.can_confirm_completion) controls += button('confirm_completion', 'Подтвердить выполнение', shift.id);
+      if (shift.can_dispute_completion) controls += button('dispute_completion', 'Сообщить о споре', shift.id);
+    } else if (shift.can_review) {
+      controls = button('review', 'Оставить отзыв', shift.id, '', shift.viewer_role);
     }
 
+    const status = completionStatus[shift.completion_state] ?? shiftStatus[shift.status];
+    const history = type === 'work_history';
+    const duration = history ? `${Math.floor(shift.minutes / 60)} ч ${shift.minutes % 60} мин` : '';
     return `<article class="card shift-card">
-      <div class="between"><span class="platform">${escapeHtml(platforms[shift.platform])}</span><span class="tag">${escapeHtml(shiftStatus[shift.status])}</span></div>
+      <div class="between"><span class="platform">${escapeHtml(platforms[shift.platform])}</span><span class="tag">${escapeHtml(status)}</span></div>
       <div class="name" style="margin-top:8px">${escapeHtml(dateTime(shift))}</div>
       <div class="details">${escapeHtml(shift.city)} · ${escapeHtml(shift.district)} · ${escapeHtml(shift.pickup_point)}</div>
+      ${history ? `<div class="details">Продолжительность · ${escapeHtml(duration)}</div><div class="small">Согласованная оплата</div>` : ''}
       <div class="price">${escapeHtml(Number(shift.pay_rubles).toLocaleString('ru-RU'))} ₽</div>
+      ${history ? '<p class="small">Выплата не подтверждена.</p>' : ''}
+      ${shift.review ? `<p class="small">Ваш отзыв · ${escapeHtml(shift.review.stars)} из 5${shift.review.comment ? ` · ${escapeHtml(shift.review.comment)}` : ''}</p>` : ''}
+      ${shift.dispute_reason ? `<p class="small">Причина спора · ${escapeHtml(shift.dispute_reason)}</p>` : ''}
       ${shift.notes ? `<p class="small">${escapeHtml(shift.notes)}</p>` : ''}
       ${info ? `<div class="name">${escapeHtml(info)}</div>` : ''}
       ${historyLine('Отклик отозван', shift.withdrawn_at)}
@@ -174,13 +199,45 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       const { items } = response.data;
       const refresh = button('reload', 'Обновить');
       const list = items.slice(0, 30).map(item => action === 'respondents' ? respondentCard(item) : shiftCard(item, action));
-      const empty = { browse: 'Подходящих смен пока нет.', owned: 'У вас пока нет объявлений.', outgoing: 'У вас пока нет откликов.', respondents: 'На эту смену пока нет откликов.' };
+      const empty = { browse: 'Подходящих смен пока нет.', owned: 'У вас пока нет объявлений.', outgoing: 'У вас пока нет откликов.', respondents: 'На эту смену пока нет откликов.', work_history: 'Завершённых смен пока нет.' };
       const pager = (page > 0 ? button('previous', 'Предыдущая') : '') + refresh +
         (items.length > 30 ? button('next', 'Следующая') : '');
       target.innerHTML = (list.join('') || message(empty[action])) + `<div class="shift-actions">${pager}</div>`;
     } catch {
       if (loadVersion === version) target.innerHTML = message('Проверьте интернет и повторите загрузку.', button('reload', 'Повторить'));
     }
+  }
+
+  async function loadReputation(role = document.querySelector('[data-profile-role][aria-pressed="true"]').dataset.profileRole) {
+    const target = byId('profileReputation');
+    const active = request;
+    const version = ++loadVersion;
+    const heading = `<h3>Рейтинг и отзывы · ${role === 'worker' ? 'сотрудник' : 'руководитель'}</h3>`;
+    target.innerHTML = heading + `<p>${active ? 'Загружаем рейтинг…' : 'Рейтинг доступен после входа.'}</p>`;
+    if (!active) return;
+    try {
+      const response = await active('reputation', {});
+      if (loadVersion !== version) return;
+      const value = response.data?.[role];
+      if (!response.ok || !Array.isArray(value?.reviews)) throw new Error('Reputation unavailable');
+      const average = value.average === null ? '—' : Number(value.average).toLocaleString('ru-RU', {
+        minimumFractionDigits: 1, maximumFractionDigits: 1
+      });
+      target.innerHTML = heading + `<div class="profile-stats">
+        <div class="stat"><strong>${escapeHtml(average)}</strong><span>Оценка из 5</span></div>
+        <div class="stat"><strong>${escapeHtml(value.review_count)}</strong><span>Отзывов</span></div>
+        <div class="stat"><strong>${escapeHtml(value.completed_count)}</strong><span>Подтверждённых смен</span></div>
+      </div>` + (value.reviews.length
+        ? value.reviews.map(review => historyLine(`${review.stars} из 5`, review.created_at, review.comment)).join('')
+        : '<p class="muted">Пока нет отзывов.</p>');
+    } catch {
+      if (loadVersion === version) target.innerHTML = heading +
+        '<p>Не удалось загрузить рейтинг.</p>' + button('reputation', 'Повторить');
+    }
+  }
+
+  for (const control of document.querySelectorAll('[data-profile-role]')) {
+    control.addEventListener('click', () => loadReputation(control.dataset.profileRole));
   }
 
   function show(id) {
@@ -193,6 +250,8 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       view = { action: worker ? 'browse' : 'owned', target: byId('shiftResults'), input: worker ? filters : {} };
     } else if (id === 'shiftsPage') {
       view = { action: mine, target: byId('myShiftResults'), input: {} };
+    } else if (id === 'profilePage') {
+      loadReputation();
     } else if (id === 'respondentsPage' && respondents) {
       byId('respondentsTitle').textContent = respondents.heading;
       view = { action: 'respondents', target: byId('respondentsResults'), input: { shift_id: respondents.id } };
@@ -209,7 +268,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
 
   function showMine(next) {
     mine = next;
-    for (const [id, active] of [['myApplications', next === 'outgoing'], ['myListings', next === 'owned']]) {
+    for (const [id, active] of [['myApplications', next === 'outgoing'], ['myListings', next === 'owned'], ['myHistory', next === 'work_history']]) {
       byId(id).classList.toggle('active', active);
       byId(id).setAttribute('aria-pressed', String(active));
     }
@@ -217,19 +276,35 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
   }
   byId('myApplications').addEventListener('click', () => showMine('outgoing'));
   byId('myListings').addEventListener('click', () => showMine('owned'));
+  byId('myHistory').addEventListener('click', () => showMine('work_history'));
   byId('backFromRespondents').addEventListener('click', () => showPage(respondents?.back ?? 'shiftsPage'));
 
-  function askConfirmation(action, input, shiftStatus) {
+  function askConfirmation(action, input, context) {
     confirmation = { action, input };
     dialogForm.reset();
     dialogError.textContent = '';
+    byId('shiftStarsField').hidden = action !== 'review';
+    byId('shiftReasonField').hidden = action === 'confirm_completion';
+    byId('shiftReasonLabel').textContent = action === 'review' ? 'Отзыв (необязательно)'
+      : action === 'dispute_completion' ? 'Причина спора' : 'Причина (необязательно)';
+    dialogStars.required = action === 'review';
+    dialogReason.required = action === 'dispute_completion';
     if (action === 'decline') {
       byId('shiftActionTitle').textContent = 'Отказаться от смены?';
       byId('shiftActionWarning').textContent =
         'Вы больше не будете исполнителем. Руководитель увидит отказ и указанную причину.';
+    } else if (action === 'confirm_completion') {
+      byId('shiftActionTitle').textContent = 'Подтвердить выполнение?';
+      byId('shiftActionWarning').textContent = 'Смена попадёт в историю, и обе стороны смогут оставить отзыв.';
+    } else if (action === 'dispute_completion') {
+      byId('shiftActionTitle').textContent = 'Сообщить о споре';
+      byId('shiftActionWarning').textContent = 'Руководитель увидит причину. До решения спора завершение и отзывы недоступны.';
+    } else if (action === 'review') {
+      byId('shiftActionTitle').textContent = context === 'manager' ? 'Оценить сотрудника' : 'Оценить руководителя';
+      byId('shiftActionWarning').textContent = 'Получатель увидит оценку и текст. Отзыв сохраняется один раз.';
     } else {
       byId('shiftActionTitle').textContent = 'Отменить смену?';
-      byId('shiftActionWarning').textContent = shiftStatus === 'confirmed'
+      byId('shiftActionWarning').textContent = context === 'confirmed'
         ? 'На смену уже назначен сотрудник. Отмена снимет назначение и закроет смену.'
         : 'Смена исчезнет из поиска. Отклики останутся в истории.';
     }
@@ -252,7 +327,14 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     event.preventDefault();
     if (!confirmation) return;
     const { action, input } = confirmation;
-    mutate(action, { ...input, reason: dialogReason.value.trim() }, dialogSubmit);
+    const text = dialogReason.value.trim();
+    const details = action === 'review' ? { stars: Number(dialogStars.value), comment: text }
+      : action === 'confirm_completion' ? {} : { reason: text };
+    if (action === 'dispute_completion' && !text) {
+      dialogError.textContent = 'Опишите спорную ситуацию.';
+      return;
+    }
+    mutate(action, { ...input, ...details }, dialogSubmit);
   });
 
   async function mutate(action, input, control) {
@@ -268,6 +350,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     control.disabled = true;
     if (fromDialog) {
       dialogReason.disabled = true;
+      dialogStars.disabled = true;
       dialogBack.disabled = true;
       dialogError.textContent = '';
     }
@@ -287,6 +370,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       control.disabled = false;
       if (fromDialog) {
         dialogReason.disabled = false;
+        dialogStars.disabled = false;
         dialogBack.disabled = false;
       }
     }
@@ -296,6 +380,10 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     const control = event.target.closest('[data-shift-action]');
     if (!control || !request) return;
     const { shiftAction: action, id, extra, heading } = control.dataset;
+    if (action === 'reputation') {
+      loadReputation();
+      return;
+    }
     if (action === 'reload' || action === 'previous' || action === 'next') {
       readPage(page + ({ previous: -1, next: 1 }[action] ?? 0));
       return;
@@ -313,7 +401,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     const input = { shift_id: id };
     if (action === 'cancel') input.expected_application_id = extra || null;
     else if (extra) input.application_id = extra;
-    if (action === 'decline' || action === 'cancel') askConfirmation(action, input, heading);
+    if (['decline', 'cancel', 'confirm_completion', 'dispute_completion', 'review'].includes(action)) {
+      askConfirmation(action, input, heading);
+    }
     else mutate(action, input, control);
   });
 
@@ -373,6 +463,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       for (const id of ['shiftResults', 'myShiftResults', 'respondentsResults', 'respondentsTitle']) {
         byId(id).textContent = '';
       }
+      byId('profileReputation').textContent = 'Рейтинг доступен после входа.';
       const active = document.querySelector('.page.active').id;
       if (active === 'respondentsPage' || active === 'createPage') showPage('homePage');
       else show(active);

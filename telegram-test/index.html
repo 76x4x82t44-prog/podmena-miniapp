@@ -35,6 +35,8 @@ button:disabled{opacity:.6;cursor:default}
 #shiftActionDialog::backdrop{background:#10251e88}
 #shiftActionDialog h2{font-size:18px;margin:0}
 #shiftActionDialog textarea{font-size:16px}
+#shiftActionDialog select{font-size:16px}
+#liveShifts .switch{grid-template-columns:repeat(3,minmax(0,1fr))}
 </style></head><body><div class="app">
 <header class="top"><div class="brand"><div class="logo">↔</div> ПОДМЕНА</div><div class="sub">Смены и сотрудники ПВЗ в Санкт-Петербурге</div><div class="hero">Найди смену.<br>Найди надёжную замену.</div><div class="hero-sub">Ozon · Wildberries · Яндекс Маркет</div><div class="city"><span>⌖ Санкт-Петербург</span><span>Город запуска　⌄</span></div></header>
 <main class="content">
@@ -71,6 +73,7 @@ button:disabled{opacity:.6;cursor:default}
     <div class="switch" role="group" aria-label="Мои смены">
       <button id="myApplications" type="button" class="active" aria-pressed="true">Мои отклики</button>
       <button id="myListings" type="button" aria-pressed="false">Мои объявления</button>
+      <button id="myHistory" type="button" aria-pressed="false">История</button>
     </div>
     <div id="myShiftResults" aria-live="polite"></div>
   </div>
@@ -143,7 +146,7 @@ button:disabled{opacity:.6;cursor:default}
     <button class="btn full" type="submit">Сохранить</button>
     <p class="profile-status" role="status"></p>
   </form>
-  <div class="card profile-feedback">
+  <div id="profileReputation" class="card profile-feedback" aria-live="polite">
     <h3>Рейтинг и отзывы</h3>
     <div class="profile-stats">
       <div class="stat"><strong>—</strong><span>Рейтинг</span></div>
@@ -194,7 +197,16 @@ button:disabled{opacity:.6;cursor:default}
   <form id="shiftActionForm">
     <h2 id="shiftActionTitle"></h2>
     <p id="shiftActionWarning"></p>
-    <div class="field"><label for="shiftActionReason">Причина (необязательно)</label><textarea id="shiftActionReason" maxlength="500"></textarea></div>
+    <div id="shiftStarsField" hidden>
+      <div class="field"><label for="shiftActionStars">Оценка</label><select id="shiftActionStars">
+        <option value="">Выберите оценку</option>
+        <option value="1">1 звезда</option><option value="2">2 звезды</option><option value="3">3 звезды</option>
+        <option value="4">4 звезды</option><option value="5">5 звёзд</option>
+      </select></div>
+    </div>
+    <div id="shiftReasonField">
+      <div class="field"><label id="shiftReasonLabel" for="shiftActionReason">Причина (необязательно)</label><textarea id="shiftActionReason" maxlength="500"></textarea></div>
+    </div>
     <p id="shiftActionError" class="profile-status" data-error role="status"></p>
     <div class="shift-actions">
       <button id="shiftActionBack" class="btn ghost" type="button">Назад</button>
@@ -204,7 +216,7 @@ button:disabled{opacity:.6;cursor:default}
 </dialog>
 </main>
 <nav class="tabs"><button class="tab active" data-page="homePage" onclick="showPage('homePage',this)"><b>⌂</b>Главная</button><button class="tab" data-page="searchPage" onclick="showPage('searchPage',this)"><b>⌕</b>Поиск</button><button class="tab" data-page="shiftsPage" onclick="showPage('shiftsPage',this)"><b>▦</b>Смены</button><button class="tab" data-page="messagesPage" onclick="showPage('messagesPage',this)"><b>☏</b>Чаты</button><button class="tab" data-page="profilePage" onclick="showPage('profilePage',this)"><b>♙</b>Профиль</button></nav><div class="toast" id="toast"></div>
-</div><script src="shifts.js?v=3d"></script><script>
+</div><script src="shifts.js?v=3e"></script><script>
 const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
   Boolean(window.Telegram.WebApp.initData);
 let mode='worker';

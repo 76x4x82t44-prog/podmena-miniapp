@@ -95,13 +95,23 @@ function parse(body: unknown) {
       return matches(uuid, shift_id) ? { action, input: { shift_id } } : null;
     case "withdraw_dispute":
     case "accept_dispute":
-      return matches(uuid, shift_id) ? { action, input: { shift_id } } : null;
     case "reply_dispute":
     case "comment_dispute": {
+      const { request_id, round_id, offer_id } = input;
+      const version = /^[1-9][0-9]{0,18}$/;
+      if (
+        !matches(uuid, shift_id) || !matches(uuid, request_id) ||
+        !matches(version, round_id)
+      ) return null;
+      const base = { shift_id, request_id, round_id };
+      if (action === "accept_dispute") {
+        return matches(version, offer_id)
+          ? { action, input: { ...base, offer_id } }
+          : null;
+      }
+      if (action === "withdraw_dispute") return { action, input: base };
       const message = text(input.message, 500);
-      return matches(uuid, shift_id) && message
-        ? { action, input: { shift_id, message } }
-        : null;
+      return message ? { action, input: { ...base, message } } : null;
     }
     case "dispute_completion": {
       const reason = text(input.reason, 500);
@@ -211,6 +221,9 @@ const specificErrors = new Set([
   "dispute_not_open",
   "dispute_offer_required",
   "dispute_message_required",
+  "stale_dispute_offer",
+  "dispute_request_conflict",
+  "invalid_dispute_version",
   "review_self_forbidden",
   "review_completion_required",
   "review_already_exists",

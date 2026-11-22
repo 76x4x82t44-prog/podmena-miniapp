@@ -26,6 +26,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     pending: 'Ожидает подтверждения сотрудника', confirmed: 'Выполнение подтверждено',
     disputed: 'Есть спор по смене', awaiting_request: 'Ожидает отметки руководителем', legacy: 'Завершена до введения подтверждений'
   };
+  const versionedDisputeActions = new Set([
+    'withdraw_dispute', 'reply_dispute', 'comment_dispute', 'accept_dispute'
+  ]);
   const success = {
     apply: 'Отклик отправлен.', confirm: 'Исполнитель выбран.', request_completion: 'Запрос на подтверждение отправлен.',
     confirm_completion: 'Выполнение смены подтверждено.', dispute_completion: 'Сообщение о споре сохранено.',
@@ -59,6 +62,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     dispute_not_open: 'Этот спор уже закрыт. Обновите страницу.',
     dispute_offer_required: 'Новое предложение руководителя отсутствует.',
     dispute_message_required: 'Введите сообщение до 500 символов.',
+    stale_dispute_offer: 'Предложение или спор изменились. Проверьте последнюю запись.',
+    dispute_request_conflict: 'Это действие уже отправлено с другими данными.',
+    invalid_dispute_version: 'Обновите страницу, чтобы открыть текущий спор.',
     review_self_forbidden: 'Оценивать свой аккаунт нельзя.',
     review_completion_required: 'Отзыв можно оставить после подтверждения смены обеими сторонами.',
     review_already_exists: 'Вы уже оставили отзыв об этой смене.',
@@ -138,7 +144,9 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       }
       if (shift.can_reopen) controls += button('reopen', 'Снова открыть поиск', shift.id, shift.replacement_application_id);
       if (shift.can_request_completion) controls += button('request_completion', 'Отметить выполненной', shift.id);
-      if (shift.can_reply_dispute) controls += button('reply_dispute', 'Ответить на спор', shift.id);
+      if (shift.can_reply_dispute && shift.dispute_round_id) {
+        controls += button('reply_dispute', 'Ответить на спор', shift.id, shift.dispute_round_id);
+      }
       if (open && !future) info = 'Приём откликов завершён';
       if (shift.status === 'needs_replacement' && !shift.can_reopen) {
         info = 'Смена уже началась. Повторно открыть поиск нельзя.';
@@ -149,9 +157,17 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       if (shift.can_decline && !finishing) controls = button('decline', 'Отказаться от смены', shift.id, shift.application_id);
       if (shift.can_confirm_completion) controls += button('confirm_completion', 'Подтвердить выполнение', shift.id);
       if (shift.can_dispute_completion) controls += button('dispute_completion', 'Сообщить о споре', shift.id);
-      if (shift.can_comment_dispute) controls += button('comment_dispute', 'Написать по спору', shift.id);
-      if (shift.can_accept_dispute) controls += button('accept_dispute', 'Принять предложение', shift.id);
-      if (shift.can_withdraw_dispute) controls += button('withdraw_dispute', 'Отозвать спор', shift.id);
+      if (shift.dispute_round_id) {
+        if (shift.can_comment_dispute) controls += button('comment_dispute', 'Написать по спору', shift.id, shift.dispute_round_id);
+        if (shift.can_accept_dispute && shift.dispute_offer_id) {
+          controls += button('accept_dispute', 'Принять предложение', shift.id, shift.dispute_round_id, shift.dispute_offer_id);
+        }
+        if (shift.can_withdraw_dispute) controls += button('withdraw_dispute', 'Отозвать спор', shift.id, shift.dispute_round_id);
+      }
+      const connected = !shift.withdrawn_at && !shift.declined_at && (
+        shift.status === 'open' || shift.status === 'needs_replacement' || shift.application_status === 'selected'
+      );
+      if (connected) controls += socialChatButton(shift.id, shift.application_id, 'Руководитель смены');
     } else if (shift.can_review) {
       controls = button('review', 'Оставить отзыв', shift.id, '', shift.viewer_role);
     }
@@ -184,7 +200,15 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     </article>`;
   }
 
+  function socialChatButton(shiftId, applicationId, peer) {
+    if (!shiftId || !applicationId) return '';
+    return `<button type="button" class="btn ghost" data-social-action="shift-chat" data-social-shift="${escapeHtml(shiftId)}" data-social-application="${escapeHtml(applicationId)}" data-social-peer="${escapeHtml(peer)}">Написать по смене</button>`;
+  }
+
   function respondentCard(entry) {
+    const controls = (entry.can_confirm ? button('confirm', 'Выбрать исполнителя', respondents.id, entry.id) : '') +
+      (!entry.withdrawn_at && !entry.declined_at && (entry.selected || entry.can_confirm)
+        ? socialChatButton(respondents.id, entry.id, entry.name) : '');
     return `<article class="card shift-card">
       <div class="name">${escapeHtml(entry.name)}</div>
       <div class="details">${escapeHtml(entry.city)} · ${escapeHtml(entry.district)} · ${escapeHtml(entry.experience)}</div>
@@ -192,7 +216,7 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
       ${historyLine('Назначение', entry.assigned_at)}
       ${historyLine('Отклик отозван', entry.withdrawn_at)}
       ${historyLine('Сотрудник отказался', entry.declined_at, entry.decline_reason)}
-      ${entry.can_confirm ? `<div class="shift-actions">${button('confirm', 'Выбрать исполнителя', respondents.id, entry.id)}</div>` : ''}
+      ${controls ? `<div class="shift-actions">${controls}</div>` : ''}
     </article>`;
   }
 
@@ -431,7 +455,11 @@ function createShiftBoard({ getMode, showPage, escapeHtml, toast }) {
     }
     if (mutating) return;
     const input = { shift_id: id };
-    if (action === 'cancel') input.expected_application_id = extra || null;
+    if (versionedDisputeActions.has(action)) {
+      input.round_id = extra;
+      input.request_id = crypto.randomUUID();
+      if (action === 'accept_dispute') input.offer_id = heading;
+    } else if (action === 'cancel') input.expected_application_id = extra || null;
     else if (extra) input.application_id = extra;
     if (['decline', 'cancel', 'confirm_completion', 'dispute_completion', 'review',
       'withdraw_dispute', 'reply_dispute', 'comment_dispute', 'accept_dispute'].includes(action)) {

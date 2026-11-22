@@ -37,7 +37,9 @@ button:disabled{opacity:.6;cursor:default}
 #shiftActionDialog textarea{font-size:16px}
 #shiftActionDialog select{font-size:16px}
 #liveShifts .switch{grid-template-columns:repeat(3,minmax(0,1fr))}
-</style></head><body><div class="app">
+</style>
+<link rel="stylesheet" href="pilot.css">
+</head><body><div class="app">
 <header class="top"><div class="brand"><div class="logo">↔</div> ПОДМЕНА</div><div class="sub">Смены и сотрудники ПВЗ в Санкт-Петербурге</div><div class="hero">Найди смену.<br>Найди надёжную замену.</div><div class="hero-sub">Ozon · Wildberries · Яндекс Маркет</div><div class="city"><span>⌖ Санкт-Петербург</span><span>Город запуска　⌄</span></div></header>
 <main class="content">
 <div id="telegramEntry" class="notice">
@@ -65,7 +67,37 @@ button:disabled{opacity:.6;cursor:default}
   <div id="shiftResults" aria-live="polite"></div>
 </div>
 </section>
-<section id="searchPage" class="page"><div class="section-head"><h2 id="searchTitle">Каталог сотрудников</h2><span class="muted">Демо-данные</span></div><div class="filters"><select id="searchPlatformFilter" aria-label="Площадка сотрудников" onchange="renderPeople()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="searchDistrictFilter" aria-label="Район сотрудников" onchange="renderPeople()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div><div id="people" aria-live="polite"></div></section>
+<section id="searchPage" class="page">
+  <div id="pilotDemoSearch"><div class="section-head"><h2 id="searchTitle">Каталог сотрудников</h2><span class="muted">Демо-данные</span></div><div class="filters"><select id="searchPlatformFilter" aria-label="Площадка сотрудников" onchange="renderPeople()"><option value="all">Все площадки</option><option>Ozon</option><option>Wildberries</option><option>Яндекс Маркет</option></select><select id="searchDistrictFilter" aria-label="Район сотрудников" onchange="renderPeople()"><option value="all">Все районы</option><option>Центральный</option><option>Приморский</option><option>Московский</option><option>Калининский</option><option>Выборгский</option></select></div><div id="people" aria-live="polite"></div></div>
+  <div id="pilotCatalog" hidden>
+    <div class="section-head"><h2>Каталог сотрудников</h2></div>
+    <p id="pilotCatalogMode" class="notice" hidden>Каталог доступен в режиме «Ищу замену» с сохранённой анкетой руководителя.</p>
+    <form id="pilotCatalogFilters" class="card pilot-panel">
+      <div class="pilot-form-row">
+        <div class="field"><label for="pilotCity">Город</label><input id="pilotCity" name="city" maxlength="80"></div>
+        <div class="field"><label for="pilotDistrict">Район</label><input id="pilotDistrict" name="district" maxlength="100"></div>
+      </div>
+      <div class="field"><label for="pilotPlatform">Площадка</label><select id="pilotPlatform" name="platform">
+        <option value="">Все площадки</option><option value="ozon">Ozon</option><option value="wildberries">Wildberries</option><option value="yandex_market">Яндекс Маркет</option>
+      </select></div>
+      <div class="pilot-form-row">
+        <div class="field"><label for="pilotExperience">Опыт на ПВЗ</label><select id="pilotExperience" name="experience">
+          <option value="">Любой опыт</option><option>Без опыта</option><option>Меньше года</option><option>От 1 года до 3 лет</option><option>3 года и больше</option>
+        </select></div>
+        <div class="field"><label for="pilotWorkType">Формат</label><select id="pilotWorkType" name="work_type">
+          <option value="">Любой</option><option value="single">Разовые смены</option><option value="permanent">Постоянная работа</option>
+        </select></div>
+      </div>
+      <button type="submit" class="btn full">Найти сотрудников</button>
+    </form>
+    <p id="pilotCatalogStatus" class="pilot-status" role="status"></p>
+    <div id="pilotCatalogItems" class="pilot-stack"></div>
+    <div id="pilotCatalogPaging" class="pilot-toolbar" hidden>
+      <button id="pilotCatalogPrevious" type="button" class="btn ghost">Назад</button>
+      <button id="pilotCatalogNext" type="button" class="btn ghost">Дальше</button>
+    </div>
+  </div>
+</section>
 <section id="shiftsPage" class="page">
   <div class="section-head"><h2>Мои смены</h2></div>
   <div id="demoShifts" class="card"><div class="empty">Деморежим. Ваши отклики и объявления доступны при входе через Telegram.</div></div>
@@ -83,7 +115,42 @@ button:disabled{opacity:.6;cursor:default}
   <p id="respondentsTitle" class="name"></p>
   <div id="respondentsResults" aria-live="polite"></div>
 </section>
-<section id="messagesPage" class="page"><div class="section-head"><h2>Сообщения</h2></div><div class="card"><div class="empty">После подключения авторизации здесь появятся диалоги с руководителями и сотрудниками.</div></div></section>
+<section id="messagesPage" class="page">
+  <div class="section-head"><h2>Чаты</h2></div>
+  <div id="pilotDemoMessages" class="card"><div class="empty">Откройте приложение в Telegram, чтобы общаться с участниками смен и принимать запросы на связь.</div></div>
+  <div id="pilotChats" hidden>
+    <p id="pilotChatsStatus" class="pilot-status" role="status"></p>
+    <div id="pilotInbox">
+      <div class="section-head"><h2>Запросы на связь</h2><button class="btn ghost" type="button" id="pilotChatRefresh">Обновить</button></div>
+      <div id="pilotConnections" class="pilot-stack"></div>
+      <div class="pilot-toolbar">
+        <button class="btn ghost" id="pilotPreviousConnections" type="button" hidden>Предыдущие запросы</button>
+        <button class="btn ghost" id="pilotMoreConnections" type="button" hidden>Следующие запросы</button>
+      </div>
+      <div class="section-head"><h2>Диалоги</h2></div>
+      <div id="pilotThreadList" class="pilot-stack"></div>
+      <div class="pilot-toolbar">
+        <button class="btn ghost" id="pilotPreviousThreads" type="button" hidden>Предыдущие диалоги</button>
+        <button class="btn ghost" id="pilotMoreThreads" type="button" hidden>Следующие диалоги</button>
+      </div>
+    </div>
+    <div id="pilotConversation" class="card pilot-panel" hidden>
+      <div class="pilot-toolbar">
+        <button id="pilotBackToChats" class="btn ghost" type="button">К диалогам</button>
+        <button id="pilotBlock" class="btn ghost" type="button" hidden>Заблокировать</button>
+        <button id="pilotReportThread" class="btn ghost" type="button">Пожаловаться</button>
+      </div>
+      <h3 id="pilotPeer"></h3>
+      <button id="pilotOlder" class="btn ghost" type="button" hidden>Ранние сообщения</button>
+      <div id="pilotChatHistory" class="pilot-chat-history pilot-stack" role="log" aria-label="История чата"></div>
+      <p id="pilotChatStatus" class="pilot-status" role="status"></p>
+      <form id="pilotComposer">
+        <div class="field"><label for="pilotMessage">Сообщение</label><textarea id="pilotMessage" maxlength="2000" rows="3" required disabled></textarea></div>
+        <button id="pilotSend" class="btn full" type="submit" disabled>Отправить</button>
+      </form>
+    </div>
+  </div>
+</section>
 <section id="profilePage" class="page">
   <div class="section-head"><h2>Мой профиль</h2></div>
   <p id="profileNotice" class="notice" role="status">Демо-анкеты сохраняются только в этом браузере.</p>
@@ -146,6 +213,23 @@ button:disabled{opacity:.6;cursor:default}
     <button class="btn full" type="submit">Сохранить</button>
     <p class="profile-status" role="status"></p>
   </form>
+  <form id="pilotSettings" class="card pilot-panel" hidden>
+    <h3>Приватность и уведомления</h3>
+    <fieldset class="shift-fields" id="pilotSettingsFields" disabled>
+      <label class="pilot-toggle profile-choice"><input id="pilotNotify" type="checkbox"> Уведомлять меня в Telegram</label>
+      <p class="small">Чтобы получать уведомления, откройте чат с ботом и нажмите «Старт».</p>
+      <label class="pilot-toggle profile-choice"><input id="pilotVisibility" type="checkbox"> Показывать мою анкету в каталоге</label>
+      <div class="field">
+        <label for="pilotPublicDescription">Описание для каталога</label>
+        <textarea id="pilotPublicDescription" maxlength="500" rows="3" aria-describedby="pilotDescriptionHint"></textarea>
+        <span id="pilotDescriptionHint" class="small">В каталоге будут видны имя, город, район, площадки, опыт, форматы работы и рейтинг. Укажите описание, которым готовы поделиться, без контактов.</span>
+      </div>
+      <button class="btn full" type="submit">Сохранить настройки</button>
+    </fieldset>
+    <p id="pilotSettingsStatus" class="pilot-status" role="status"></p>
+    <button id="pilotSettingsRetry" class="btn ghost" type="button" hidden>Повторить загрузку</button>
+  </form>
+  <a class="pilot-help-link" href="help.html" target="_blank" rel="noopener noreferrer">Справка и правила</a>
   <div id="profileReputation" class="card profile-feedback" aria-live="polite">
     <h3>Рейтинг и отзывы</h3>
     <div class="profile-stats">
@@ -214,9 +298,20 @@ button:disabled{opacity:.6;cursor:default}
     </div>
   </form>
 </dialog>
+<dialog id="pilotReportDialog" class="card pilot-panel" aria-labelledby="pilotReportTitle">
+  <form id="pilotReportForm">
+    <h2 id="pilotReportTitle">Жалоба</h2>
+    <div class="field"><label for="pilotReportReason">Причина жалобы</label><textarea id="pilotReportReason" maxlength="500" rows="3" required></textarea></div>
+    <p id="pilotReportStatus" class="pilot-status" role="status"></p>
+    <div class="pilot-toolbar">
+      <button type="button" id="pilotCloseReport" class="btn ghost">Назад</button>
+      <button type="submit" class="btn" id="pilotSubmitReport">Отправить жалобу</button>
+    </div>
+  </form>
+</dialog>
 </main>
-<nav class="tabs"><button class="tab active" data-page="homePage" onclick="showPage('homePage',this)"><b>⌂</b>Главная</button><button class="tab" data-page="searchPage" onclick="showPage('searchPage',this)"><b>⌕</b>Поиск</button><button class="tab" data-page="shiftsPage" onclick="showPage('shiftsPage',this)"><b>▦</b>Смены</button><button class="tab" data-page="messagesPage" onclick="showPage('messagesPage',this)"><b>☏</b>Чаты</button><button class="tab" data-page="profilePage" onclick="showPage('profilePage',this)"><b>♙</b>Профиль</button></nav><div class="toast" id="toast"></div>
-</div><script src="shifts.js?v=3zh"></script><script>
+<nav class="tabs"><button class="tab active" data-page="homePage" onclick="showPage('homePage',this)"><b>⌂</b>Главная</button><button class="tab" data-page="searchPage" onclick="showPage('searchPage',this)"><b>⌕</b>Поиск</button><button class="tab" data-page="shiftsPage" onclick="showPage('shiftsPage',this)"><b>▦</b>Смены</button><button class="tab" data-page="messagesPage" onclick="showPage('messagesPage',this)"><b>☏</b><span>Чаты <span id="pilotUnreadBadge" class="pilot-badge" aria-label="Есть непрочитанные сообщения" hidden>●</span></span></button><button class="tab" data-page="profilePage" onclick="showPage('profilePage',this)"><b>♙</b>Профиль</button></nav><div class="toast" id="toast"></div>
+</div><script src="social.js?v=pilot1"></script><script src="shifts.js?v=pilot1"></script><script>
 const hasTelegramInitData = typeof window.Telegram?.WebApp?.initData === 'string' &&
   Boolean(window.Telegram.WebApp.initData);
 let mode='worker';
@@ -272,6 +367,7 @@ function showPage(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   if(el)el.classList.add('active');else document.querySelector(`[data-page="${id}"]`)?.classList.add('active');
   shiftBoard?.show(id);
+  socialBoard?.show(id);
 }
 function openCreate(){if(mode==='manager')showPage('createPage');else toast('Переключитесь в режим «Ищу замену», чтобы разместить смену');}
 function toast(message){let t=document.getElementById('toast');t.textContent=message;t.style.display='block';clearTimeout(window.tt);window.tt=setTimeout(()=>t.style.display='none',2600);}
@@ -288,6 +384,16 @@ document.getElementById('createForm').addEventListener('submit',event=>{
 });
 const shiftBoard = hasTelegramInitData
   ? createShiftBoard({ getMode: () => mode, showPage, escapeHtml, toast }) : null;
+const socialBoard = hasTelegramInitData && typeof createSocialBoard === 'function'
+  ? createSocialBoard({ getMode: () => mode, showPage, toast }) : null;
+if (hasTelegramInitData && !socialBoard) {
+  document.getElementById('pilotDemoSearch').hidden = true;
+  document.getElementById('pilotCatalog').hidden = false;
+  document.getElementById('pilotCatalogFilters').hidden = true;
+  const unavailable = 'Каталог и чаты не загрузились. Закройте Mini App и откройте его снова.';
+  document.getElementById('pilotCatalogStatus').textContent = unavailable;
+  document.getElementById('pilotDemoMessages').textContent = unavailable;
+}
 renderHome();renderPeople();
 
 const profileEditor = (function initProfiles(){
@@ -513,6 +619,7 @@ const profileEditor = (function initProfiles(){
   const endpoint = new URL('/functions/v1/telegram-auth-', projectUrl);
   const profilesEndpoint = new URL('/functions/v1/telegram-profiles', projectUrl);
   const shiftsEndpoint = new URL('/functions/v1/telegram-shifts', projectUrl);
+  const socialEndpoint = new URL('/functions/v1/telegram-social', projectUrl);
   const reopen = ' Закройте Mini App и откройте его заново через бота в Telegram.';
   const signedIn = 'Вход через Telegram подтверждён.';
 
@@ -526,6 +633,7 @@ const profileEditor = (function initProfiles(){
     session = null;
     profileEditor.disconnect();
     shiftBoard.disconnect();
+    socialBoard?.disconnect();
     showStatus(message + reopen);
   }
 
@@ -609,6 +717,7 @@ const profileEditor = (function initProfiles(){
         expiryTimer = setTimeout(() => endSession('Срок действия сессии истёк.'), expiry - Date.now());
         profileEditor.connect((method, body) => requestWithSession(profilesEndpoint, method, body));
         shiftBoard.connect((action, input) => requestWithSession(shiftsEndpoint, 'POST', { action, input }));
+        socialBoard?.connect((action, input) => requestWithSession(socialEndpoint, 'POST', { action, input }));
       }
       showStatus(signedIn);
     } catch {

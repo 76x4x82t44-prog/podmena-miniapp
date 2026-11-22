@@ -1,0 +1,251 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f7f5;
+  --card: #ffffff;
+  --ink: #17251e;
+  --muted: #4f6358;
+  --green: #087b51;
+  --green2: #e4f2e9;
+  --line: #dde7e0;
+  --amber: #fff4d9;
+  --shadow: 0 6px 22px #163b2910;
+  --pilot-deep: #10251e;
+  --pilot-line-control: #85978c;
+  --pilot-focus: #285f93;
+  --pilot-danger: #8e251e;
+  --pilot-touch: 44px;
+  --pilot-radius: 16px;
+  --pilot-gap: 12px;
+  --pilot-tab-space: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+html { scroll-padding-bottom: calc(var(--pilot-tab-space) + 12px); }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+[hidden] { display: none !important; }
+
+.app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: var(--pilot-tab-space);
+}
+
+.app .top {
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  padding-right: max(18px, env(safe-area-inset-right, 0px));
+  padding-left: max(18px, env(safe-area-inset-left, 0px));
+}
+
+.app .content {
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+}
+
+.app .city { gap: 8px; }
+.app .city span { min-width: 0; overflow-wrap: anywhere; }
+.app .card { min-width: 0; border-radius: var(--pilot-radius); }
+
+.app :is(.name, .details, .shift-card, .pilot-panel, .profile-status, .notice, .toast) {
+  overflow-wrap: anywhere;
+}
+
+.app :is(.row, .between, .section-head) > * { min-width: 0; }
+.app :is(.between, .section-head) { flex-wrap: wrap; }
+.app :is(.tag, .avatar) { flex-shrink: 0; }
+.app .tag { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.app .rating { color: #785511; }
+.app .stat span { color: var(--muted); font-size: 11px; }
+
+.app :is(button, a.pilot-help-link),
+.pilot-help :is(.pilot-help-link, .pilot-help-nav a) {
+  min-height: var(--pilot-touch);
+}
+
+.app :is(.field, .filters) :is(input:not([type=checkbox], [type=radio]), select, textarea),
+.app dialog :is(input:not([type=checkbox], [type=radio]), select, textarea) {
+  min-height: var(--pilot-touch);
+  min-width: 0;
+  border-color: var(--pilot-line-control);
+  font-size: 16px;
+  scroll-margin-block: 12px var(--pilot-tab-space);
+}
+
+.app .field > :is(input[type=checkbox], input[type=radio]),
+.app .pilot-toggle > input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  accent-color: var(--green);
+}
+
+.app .filters { flex-wrap: wrap; overflow: visible; }
+.app .filters select { max-width: 100%; flex: 1 1 132px; }
+
+.app .tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding-block: 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(4px, env(safe-area-inset-left, 0px));
+  padding-right: max(4px, env(safe-area-inset-right, 0px));
+  background: #fcfefc;
+}
+
+.app .tab {
+  position: relative;
+  align-content: center;
+  row-gap: 1px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.app .tab.active {
+  border-radius: 11px;
+  background: var(--green2);
+  color: #145c3f;
+}
+
+.app .tab b { font-size: 18px; line-height: 1; }
+.app .toast { bottom: var(--pilot-tab-space); }
+
+.app dialog {
+  box-sizing: border-box;
+  max-width: min(480px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  margin: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.app dialog::backdrop { background: #10251ebf; }
+
+.app :is(button, a, input, select, textarea):focus-visible,
+.pilot-help a:focus-visible {
+  outline: 3px solid var(--pilot-focus);
+  outline-offset: 2px;
+}
+
+.app .btn { white-space: normal; overflow-wrap: anywhere; }
+.app .profile-status[data-error], .pilot-status[data-error] { color: var(--pilot-danger); }
+
+.pilot-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pilot-toolbar > * { min-width: 0; }
+.pilot-stack { display: grid; gap: 8px; min-width: 0; }
+.pilot-stack > * { min-width: 0; }
+.pilot-status { margin-block: 8px; color: var(--muted); overflow-wrap: anywhere; }
+.pilot-status:empty { margin: 0; }
+
+.pilot-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--pilot-touch);
+  cursor: pointer;
+}
+
+.pilot-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.pilot-form-row .field { min-width: 0; }
+
+.pilot-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: var(--pilot-deep);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.tab .pilot-badge {
+  position: absolute;
+  top: 0;
+  inset-inline-end: max(2px, calc(50% - 22px));
+}
+
+.pilot-chat-history { display: grid; gap: 8px; min-width: 0; }
+.pilot-message {
+  justify-self: start;
+  min-width: 0;
+  max-width: min(100%, 36ch);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 14px 4px;
+  padding: 9px 12px;
+  background: var(--card);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pilot-message--mine {
+  justify-self: end;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--green2);
+}
+
+.pilot-help-link, .pilot-help-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--pilot-touch);
+  color: #145c3f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.pilot-help-main {
+  max-width: 620px;
+  margin-inline: auto;
+  padding: calc(18px + env(safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+}
+
+.pilot-help-main h1 { margin-block: 0 6px; font-size: clamp(1.4rem, 5vw, 2rem); }
+.pilot-help-main h2 { font-size: 1.15rem; margin-block: 0 8px; }
+.pilot-help-main h3 { font-size: 1rem; }
+.pilot-help-main h3, .pilot-help-main p { margin-block: 10px; }
+
+.pilot-help-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-block: 14px;
+}
+
+.pilot-help-nav a, .pilot-help-section {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--pilot-radius);
+  background: var(--card);
+}
+
+.pilot-help-section {
+  margin-block: 12px;
+  padding: 16px;
+  scroll-margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+.pilot-draft {
+  border-radius: 10px;
+  background: var(--amber);
+  color: #634808;
+  padding: 8px 10px;
+}
+
+@media (max-width: 380px) {
+  .app .content { padding-right: max(12px, env(safe-area-inset-right, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px)); }
+  .app .card { padding-inline: 12px; }
+  .pilot-form-row { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
